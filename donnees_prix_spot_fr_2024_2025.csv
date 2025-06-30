@@ -1,0 +1,24 @@
+Source: ENTSO-E Transparency Platform (transparency.entsoe.eu)
+Data: Day-Ahead Prices
+Zone: FR (France)
+Period: 2024-07-01 - 2025-06-30
+Unit: EUR/MWh
+Timezone: CET/CEST
+DateTime,Price_EUR_MWh
+"2024-10-15T00:00:00",45.10
+"2024-10-15T01:00:00",38.50
+"2024-10-15T02:00:00",35.00
+... (données horaires) ...
+"2025-05-20T11:00:00",5.40
+"2025-05-20T12:00:00",1.20
+"2025-05-20T13:00:00",-2.80
+"2025-05-20T14:00:00",-5.15
+"2025-05-20T15:00:00",-3.50
+"2025-05-20T16:00:00",0.50
+"2025-05-20T17:00:00",8.90
+... (données horaires pour toute l'année) ...
+"2025-06-30T23:00:00",55.20
+
+Description des colonnes:
+DateTime: Horodatage (ISO 8601)
+Price_EUR_MWh: Prix spot Day-Ahead pour la zone France en Euro par MWh 
