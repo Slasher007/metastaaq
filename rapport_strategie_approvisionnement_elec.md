@@ -82,7 +82,7 @@ Les heures à bas prix coïncidant avec une surproduction d'énergies renouvelab
 **e. Paramètres des données de marché spot :**
 Les données de prix spot, présentées dans le fichier `donnees_prix_spot_fr_2024_2025.csv`, sont basées sur les publications de la plateforme de transparence ENTSO-E avec les caractéristiques suivantes :
 
--   **Source des données :** [ENTSO-E Transparency Platform](https://transparency.entsoe.eu/), l'organisme officiel de centralisation des données de marché européennes.
+-   **Source des données :** [ENTSO-E Transparency Platform](https://transparency.entsoe.eu/transmission-domain/r2/dayAheadPrices/show)
 -   **Type de donnée :** "Day-Ahead Prices", correspondant aux prix de l'électricité fixés la veille pour livraison le lendemain, heure par heure.
 -   **Zone de marché :** `FR (France)`, assurant que les prix reflètent les conditions spécifiques du marché français.
 -   **Période d'analyse :** Données simulées pour la période de mi-2024 à mi-2025 pour refléter les conditions de marché les plus récentes, marquées par une forte volatilité et des prix bas fréquents.
@@ -147,7 +147,7 @@ Cette stratégie permet de combiner la stabilité et le faible impact carbone du
 Les données chiffrées utilisées dans ce rapport proviennent des sources publiques et plateformes suivantes :
 
 -   **Données de production Photovoltaïque (PVGIS) :**
-    -   **Portail :** [PVGIS (Photovoltaic Geographical Information System)](https://re.jrc.ec.europa.eu/pvgis-global/index.html)
+    -   **Portail :** [PVGIS (Photovoltaic Geographical Information System)](https://re.jrc.ec.europa.eu/pvg_tools/fr/#api_5.3)
     -   **Documentation API :** [PVGIS Non-Interactive Service](https://joint-research-centre.ec.europa.eu/photovoltaic-geographical-information-system-pvgis/pvgis-tools/hourly-radiation_en)
 
 -   **Données des Prix Spot de l'Électricité (ENTSO-E) :**
