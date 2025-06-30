@@ -26,24 +26,29 @@ Ce rapport présente une analyse détaillée des différentes stratégies d'appr
 
 L'installation d'un parc solaire à proximité du site de Meaux constitue une option stratégique pour garantir une source d'énergie locale, prévisible et à faible teneur en carbone.
 
-**a. Dimensionnement et emprise au sol :**
-- **Puissance envisagée :** 5 MWc (Mégawatt-crête).
-- **Technologie :** Panneaux monocristallins sur structures fixes, orientés sud.
-- **Surface requise :** Sur la base des ratios actuels pour des parcs au sol, une installation de 5 MWc nécessite une emprise foncière d'environ **5 à 7 hectares**. Cette surface permet une implantation optimale des panneaux et des infrastructures annexes (onduleurs, poste de livraison, pistes de maintenance).
+**a. Potentiel de production et emprise au sol :**
+Pour une installation de **5 MWc**, la surface nécessaire est estimée entre **5 et 7 hectares**. Cette estimation est basée sur les ratios standards du secteur et une analyse détaillée.
 
-**b. Simulation de la production :**
+**b. Justification du ratio d'emprise au sol :**
+Le ratio de référence utilisé, soit **1 à 1,5 hectare par MWc**, est un consensus bien établi dans la filière photovoltaïque française. Il est confirmé par plusieurs sources, notamment :
+-   **Le portail de référence Photovoltaique.info (soutenu par l'ADEME)**, qui indique une puissance possible de 0,7 à 1,0 MWc par hectare pour un parc au sol, soit un besoin en surface de 1 à 1,43 ha par MWc.
+-   **Des analyses de projets concrets**, comme la centrale de Cestas (0,87 ha/MWc) ou celle de Toul-Rosières (3,19 ha/MWc), qui montrent que ce ratio varie en fonction de l'optimisation et des contraintes du site.
+
+La surface totale de **6 hectares retenue pour l'étude** (soit 1,2 ha/MWc) est donc une hypothèse réaliste qui inclut non seulement la surface des panneaux, mais aussi les espaces techniques indispensables (voies d'accès, onduleurs, postes de transformation, clôtures) et l'espacement entre les rangées pour éviter l'ombrage mutuel.
+
+**c. Simulation de la production :**
 Une simulation de la production a été réalisée via l'outil PVGIS pour la localisation de Meaux (77), en considérant des pertes systèmes standards (câblage, onduleur, salissure) de 14%.
 
 - **Production annuelle estimée :** ~ 5 950 MWh/an.
 - **Facteur de charge moyen :** ~ 13.6%.
 - **Profil de production :** La production est par nature intermittente, concentrée en journée avec de fortes variations saisonnières (production estivale supérieure à la production hivernale).
 
-**c. Analyse économique (LCOE) :**
+**d. Analyse économique (LCOE) :**
 Le coût actualisé de l'énergie (LCOE - Levelized Cost of Energy) pour ce parc solaire est un indicateur clé pour évaluer sa compétitivité. Selon des analyses récentes du marché français (publications académiques et de marché 2024-2025), le LCOE pour les nouvelles centrales photovoltaïques au sol se situe dans une fourchette de **28 à 55 €/MWh**.
 
 - **Hypothèse retenue pour le projet :** En visant des conditions de financement et d'installation optimisées, un LCOE moyen de **35 €/MWh** est une hypothèse réaliste pour notre projet de 5 MW. Ce coût est supérieur à l'objectif cible de 10-15 €/MWh mais offre une base de production décarbonée stable et locale.
 
-**d. Paramètres de la simulation de production (PVGIS) :**
+**e. Paramètres de la simulation de production (PVGIS) :**
 La simulation de production du parc solaire, dont les résultats sont dans le fichier `donnees_production_pv_meaux.csv`, a été réalisée avec l'outil PVGIS en utilisant les hypothèses suivantes :
 
 -   **Localisation Géographique :** Meaux, France (Latitude : 48.96°, Longitude : 2.88°). Ce paramètre assure l'utilisation des données d'ensoleillement spécifiques au site du projet.
@@ -151,7 +156,7 @@ Les données chiffrées utilisées dans ce rapport proviennent des sources publi
     -   **Documentation API :** [PVGIS Non-Interactive Service](https://joint-research-centre.ec.europa.eu/photovoltaic-geographical-information-system-pvgis/pvgis-tools/hourly-radiation_en)
 
 -   **Données des Prix Spot de l'Électricité (ENTSO-E) :**
-    -   **Portail :** [ENTSO-E Transparency Platform - Day-Ahead Prices](https://transparency.entsoe.eu/transmission-domain/r2/dayAheadPrices/show)
+    -   **Portail :** [ENTSO-E Transparency Platform - Day-Ahead Prices](https://transparency.entsoe.eu/transmission-domain/r2/dayAHeadPrices/show)
     -   **Documentation API :** [ENTSO-E REST API Documentation](https://transparency.entsoe.eu/content/static_content/Static%20content/knowledge%20base/api-docs.html)
 
 -   **Coûts LCOE et PPA :**
