@@ -16,13 +16,17 @@ def charger_donnees_prix():
     """Charge et prépare les données de prix spot"""
     print("📊 Chargement des données de prix spot...")
     
-    # Charger les données
-    df = pd.read_csv('donnees_prix_spot_fr_2024_2025.csv', 
-                     index_col=0, parse_dates=True)
+    # Charger les données (sans parse_dates pour éviter les problèmes de timezone)
+    df = pd.read_csv('donnees_prix_spot_fr_2024_2025.csv', index_col=0)
     
     # Renommer la colonne si nécessaire
     if 'Prix_EUR_MWh' not in df.columns and len(df.columns) == 1:
         df.columns = ['Prix_EUR_MWh']
+    
+    # Convertir l'index en DatetimeIndex en gérant les timezone-aware datetimes
+    print("🔄 Conversion de l'index en DatetimeIndex...")
+    # Utiliser utc=True pour gérer les timezone-aware strings, convertir vers timezone locale, puis supprimer l'info de timezone
+    df.index = pd.to_datetime(df.index, utc=True).tz_convert('Europe/Paris').tz_localize(None)
     
     # Ajouter des colonnes temporelles pour l'analyse
     df['Heure'] = df.index.hour
