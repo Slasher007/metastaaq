@@ -49,7 +49,7 @@ def telecharger_donnees_entsoe(api_key, pays_code='FR'):
     print("Téléchargement des données de prix spot depuis ENTSO-E...")
     if not api_key or api_key == "VOTRE_CLE_API_ENTSOE_ICI":
         print("Erreur : Clé API ENTSO-E non configurée.")
-        print("Veuillez vous enregistrer sur https://transparency.entsoe.eu/ pour obtenir une clé et l'ajouter dans le script.")
+        print("Veuillez suivre les instructions ici pour obtenir une clé : https://transparencyplatform.zendesk.com/hc/en-us/articles/12845911031188-How-to-get-security-token")
         return None
         
     try:
@@ -82,8 +82,8 @@ if __name__ == '__main__':
     
     # !! IMPORTANT !!
     # Remplacez la ligne ci-dessous par votre propre clé API obtenue sur le site d'ENTSO-E
-    # Vous pouvez la demander ici : https://transparency.entsoe.eu/dashboard/user-dashboard
-    ENTSOE_API_KEY = os.getenv('ENTSOE_API_TOKEN', "VOTRE_CLE_API_ENTSOE_ICI")
+    # Instructions détaillées pour obtenir le token : https://transparencyplatform.zendesk.com/hc/en-us/articles/12845911031188-How-to-get-security-token
+    ENTSOE_API_KEY = os.getenv('ENTSOE_API_TOKEN', "9d9b8840-56e2-4993-9385-47cfe2b8183f")
 
     print("--- Lancement du script de récupération des données ---")
     
