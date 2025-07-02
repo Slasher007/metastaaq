@@ -455,9 +455,69 @@ def creer_interface_interactive(df_original):
 • Économie vs prix moyen: {df_data['Prix_EUR_MWh'].mean() - heures_optimales['Prix_EUR_MWh'].mean():.2f} €/MWh
 • Objectif 15€/MWh: {'✅ ATTEINT' if heures_optimales['Prix_EUR_MWh'].mean() <= 15 else '❌ NON ATTEINT'}"""
         
-        # Section 5: Meilleurs créneaux
-        top_heures = stats_horaires.nsmallest(5, 'mean')
-        creneaux_text = "🕐 MEILLEURS CRÉNEAUX HORAIRES:\n"
+        # Section 5: Meilleurs créneaux - Calculer les plages horaires
+        def calculer_plages_horaires(heures_optimales_data):
+            """Calcule les plages horaires continues les plus fréquentes"""
+            # Compter les occurrences par heure
+            repartition = heures_optimales_data.groupby('Heure').size().sort_index()
+            
+            # Identifier les créneaux les plus utilisés (top 30% des heures)
+            seuil_min = repartition.quantile(0.7)  
+            heures_importantes = repartition[repartition >= seuil_min].index.tolist()
+            
+            # Créer les plages continues
+            plages_info = []
+            if heures_importantes:
+                debut = heures_importantes[0]
+                fin = heures_importantes[0]
+                
+                for i in range(1, len(heures_importantes)):
+                    if heures_importantes[i] == fin + 1:  # Heure consécutive
+                        fin = heures_importantes[i]
+                    else:  # Rupture dans la séquence
+                        # Calculer les statistiques de cette plage
+                        heures_plage = list(range(debut, fin + 1))
+                        nb_occurrences = sum(repartition.get(h, 0) for h in heures_plage)
+                        pct_utilisation = (nb_occurrences / len(heures_optimales_data)) * 100
+                        
+                        if debut == fin:
+                            plage_str = f"{debut:02d}h ({pct_utilisation:.1f}%)"
+                        else:
+                            plage_str = f"{debut:02d}h-{fin:02d}h ({pct_utilisation:.1f}%)"
+                        
+                        plages_info.append((plage_str, nb_occurrences))
+                        debut = heures_importantes[i]
+                        fin = heures_importantes[i]
+                
+                # Ajouter la dernière plage
+                heures_plage = list(range(debut, fin + 1))
+                nb_occurrences = sum(repartition.get(h, 0) for h in heures_plage)
+                pct_utilisation = (nb_occurrences / len(heures_optimales_data)) * 100
+                
+                if debut == fin:
+                    plage_str = f"{debut:02d}h ({pct_utilisation:.1f}%)"
+                else:
+                    plage_str = f"{debut:02d}h-{fin:02d}h ({pct_utilisation:.1f}%)"
+                
+                plages_info.append((plage_str, nb_occurrences))
+                
+                # Trier par nombre d'occurrences
+                plages_info.sort(key=lambda x: x[1], reverse=True)
+            
+            return plages_info, repartition
+        
+        plages_optimales, repartition_heures = calculer_plages_horaires(heures_optimales)
+        
+        creneaux_text = "🕐 CRÉNEAUX OPTIMAUX:\n"
+        if plages_optimales:
+            for plage_info, _ in plages_optimales[:3]:  # Top 3 des plages
+                creneaux_text += f"• {plage_info}\n"
+        else:
+            creneaux_text += "• Aucune plage continue identifiée\n"
+        
+        # Ajouter les statistiques des meilleures heures individuelles
+        top_heures = stats_horaires.nsmallest(3, 'mean')
+        creneaux_text += "\n💡 PRIX LES PLUS BAS:\n"
         for heure, row in top_heures.iterrows():
             creneaux_text += f"• {heure:02d}h: {row['mean']:.1f} €/MWh\n"
         
