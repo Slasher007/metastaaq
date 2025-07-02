@@ -349,34 +349,74 @@ def creer_interface_interactive(df_original):
         ax6.set_title('Créneaux Optimaux (40%)')
         ax6.grid(True, alpha=0.3)
         
-        # 7. Comparaison prix par année/mois
-        if len(state['annees']) > 1:
-            # Prix moyens par année
-            prix_annees = []
-            for annee in state['annees']:
-                df_annee = df_data[df_data.index.year == annee]
-                prix_annees.append(df_annee['Prix_EUR_MWh'].mean())
-            
-            ax7.bar([str(a) for a in state['annees']], prix_annees, alpha=0.7, color='purple')
-            ax7.axhline(15, color='green', linestyle='--', label='Objectif: 15 €/MWh')
-            ax7.set_xlabel('Année')
-            ax7.set_ylabel('Prix moyen (€/MWh)')
-            ax7.set_title('Prix Moyen par Année')
-            ax7.legend()
-            ax7.grid(True, alpha=0.3)
+        # 7. Comparaison adaptative selon le filtre sélectionné
+        if state['selection_actuelle'] == 'Toutes les données':
+            # Vue globale : comparer par année si plusieurs années, sinon par mois
+            if len(state['annees']) > 1:
+                # Prix moyens par année
+                prix_annees = []
+                for annee in state['annees']:
+                    df_annee = df_original[df_original.index.year == annee]
+                    prix_annees.append(df_annee['Prix_EUR_MWh'].mean())
+                
+                ax7.bar([str(a) for a in state['annees']], prix_annees, alpha=0.7, color='purple')
+                ax7.set_xlabel('Année')
+                ax7.set_title('Comparaison par Année')
+            else:
+                # Prix par mois de l'année
+                prix_mois = df_original.groupby(df_original.index.month)['Prix_EUR_MWh'].mean()
+                mois_noms = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 
+                            'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']
+                ax7.bar([mois_noms[i-1] for i in prix_mois.index], prix_mois.values, alpha=0.7, color='orange')
+                ax7.set_xlabel('Mois')
+                ax7.set_title('Comparaison par Mois')
+                ax7.tick_params(axis='x', rotation=45)
         else:
-            # Prix par mois de l'année
-            prix_mois = df_data.groupby(df_data.index.month)['Prix_EUR_MWh'].mean()
-            mois_noms = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 
-                        'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']
-            ax7.bar([mois_noms[i-1] for i in prix_mois.index], prix_mois.values, alpha=0.7, color='orange')
-            ax7.axhline(15, color='green', linestyle='--', label='Objectif: 15 €/MWh')
-            ax7.set_xlabel('Mois')
-            ax7.set_ylabel('Prix moyen (€/MWh)')
-            ax7.set_title('Prix Moyen par Mois')
-            ax7.legend()
-            ax7.grid(True, alpha=0.3)
-            ax7.tick_params(axis='x', rotation=45)
+            # Vue mensuelle spécifique : comparer ce mois avec les autres mois ou montrer la répartition hebdomadaire
+            mois_selectionne = state['selection_actuelle'].split(' ')
+            mois_nom = mois_selectionne[0]
+            annee_selectionnee = int(mois_selectionne[1])
+            
+            # Mapping des noms de mois
+            mois_mapping = {'Jan': 1, 'Fév': 2, 'Mar': 3, 'Avr': 4, 'Mai': 5, 'Jun': 6,
+                           'Jul': 7, 'Aoû': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Déc': 12}
+            mois_num = mois_mapping[mois_nom]
+            
+            # Option 1: Comparer ce mois avec les mêmes mois des autres années (si disponible)
+            memes_mois_autres_annees = []
+            annees_disponibles = []
+            for annee in state['annees']:
+                df_meme_mois = df_original[(df_original.index.year == annee) & (df_original.index.month == mois_num)]
+                if len(df_meme_mois) > 0:
+                    memes_mois_autres_annees.append(df_meme_mois['Prix_EUR_MWh'].mean())
+                    annees_disponibles.append(annee)
+            
+            if len(annees_disponibles) > 1:
+                # Comparer le même mois sur différentes années
+                colors = ['red' if a == annee_selectionnee else 'lightblue' for a in annees_disponibles]
+                bars = ax7.bar([str(a) for a in annees_disponibles], memes_mois_autres_annees, 
+                              alpha=0.7, color=colors)
+                ax7.set_xlabel('Année')
+                ax7.set_title(f'Comparaison {mois_nom} sur Différentes Années')
+                
+                # Mettre en évidence l'année sélectionnée
+                for i, annee in enumerate(annees_disponibles):
+                    if annee == annee_selectionnee:
+                        bars[i].set_edgecolor('darkred')
+                        bars[i].set_linewidth(2)
+            else:
+                # Pas d'autres années disponibles : montrer la répartition par semaine du mois
+                df_semaines = df_data.groupby(df_data.index.isocalendar().week)['Prix_EUR_MWh'].mean()
+                semaines_labels = [f"S{int(s)}" for s in df_semaines.index]
+                ax7.bar(semaines_labels, df_semaines.values, alpha=0.7, color='green')
+                ax7.set_xlabel('Semaine')
+                ax7.set_title(f'Prix Moyen par Semaine - {mois_nom} {annee_selectionnee}')
+        
+        # Ligne de référence et mise en forme commune
+        ax7.axhline(15, color='green', linestyle='--', label='Objectif: 15 €/MWh')
+        ax7.set_ylabel('Prix moyen (€/MWh)')
+        ax7.legend()
+        ax7.grid(True, alpha=0.3)
         
         # 8. Statistiques détaillées
         ax8.axis('off')
