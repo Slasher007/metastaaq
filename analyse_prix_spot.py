@@ -212,15 +212,16 @@ def creer_interface_interactive(df_original):
         'df_filtre': df_original.copy(),
         'options': options_radio,
         'annees': annees,
-        'mois': mois
+        'mois': mois,
+        'colorbar': None  # Pour éviter la duplication de la colorbar
     }
     
     # Créer la figure principale
     fig = plt.figure(figsize=(20, 15))
     
-    # Zone pour les graphiques (laisser de l'espace pour les contrôles)
+    # Zone pour les graphiques (espace réduit pour les contrôles)
     gs = fig.add_gridspec(3, 4, hspace=0.3, wspace=0.3, 
-                         left=0.22, right=0.95, top=0.92, bottom=0.05)
+                         left=0.15, right=0.95, top=0.92, bottom=0.05)
     
     # Axes pour les graphiques
     ax1 = fig.add_subplot(gs[0, 0])  # Distribution des prix
@@ -234,13 +235,13 @@ def creer_interface_interactive(df_original):
     
     axes = [ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8]
     
-    # Zone pour les contrôles (côté gauche) - radio buttons pour sélection
-    ax_radio = fig.add_axes([0.02, 0.1, 0.18, 0.8])
+    # Zone pour les contrôles (côté gauche) - radio buttons réduits
+    ax_radio = fig.add_axes([0.02, 0.1, 0.11, 0.8])
     radio = RadioButtons(ax_radio, options_radio)
     radio.set_active(0)  # "Toutes les données" par défaut
     
     # Titre pour les contrôles
-    fig.text(0.02, 0.95, 'Sélectionnez la période:', fontsize=12, fontweight='bold')
+    fig.text(0.02, 0.95, 'Période:', fontsize=11, fontweight='bold')
     
     def mettre_a_jour_graphiques():
         """Met à jour tous les graphiques avec les données filtrées"""
@@ -331,6 +332,10 @@ def creer_interface_interactive(df_original):
                                        columns='Heure', aggfunc='mean')
         pivot_data = pivot_data.reindex(jours_ordre)
         
+        # Supprimer l'ancienne colorbar si elle existe
+        if state['colorbar'] is not None:
+            state['colorbar'].remove()
+        
         im = ax5.imshow(pivot_data.values, cmap='RdYlGn_r', aspect='auto')
         ax5.set_xticks(range(24))
         ax5.set_xticklabels(range(24))
@@ -339,7 +344,9 @@ def creer_interface_interactive(df_original):
         ax5.set_xlabel('Heure')
         ax5.set_ylabel('Jour de la semaine')
         ax5.set_title('Heatmap Prix par Heure et Jour')
-        plt.colorbar(im, ax=ax5, label='Prix (€/MWh)')
+        
+        # Créer une nouvelle colorbar et la sauvegarder
+        state['colorbar'] = plt.colorbar(im, ax=ax5, label='Prix (€/MWh)')
         
         # 6. Créneaux optimaux
         repartition_optimale = heures_optimales.groupby('Heure').size()
