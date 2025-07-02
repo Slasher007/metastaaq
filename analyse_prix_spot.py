@@ -194,6 +194,9 @@ def creer_interface_interactive(df_original):
     """Crée une interface interactive pour l'analyse des prix spot"""
     print("\n🎮 Création de l'interface interactive...")
     
+    # Fermer toutes les figures existantes pour éviter les conflits
+    plt.close('all')
+    
     # Obtenir les périodes disponibles
     annees, mois = obtenir_periodes_disponibles(df_original)
     
@@ -216,8 +219,8 @@ def creer_interface_interactive(df_original):
         'colorbar': None  # Pour éviter la duplication de la colorbar
     }
     
-    # Créer la figure principale
-    fig = plt.figure(figsize=(20, 15))
+    # Créer la figure principale avec un numéro unique
+    fig = plt.figure(figsize=(20, 15), num=f'MetaSTAAQ_Analysis_{id(df_original)}')
     
     # Zone pour les graphiques (décalage suffisant pour éviter le chevauchement)
     gs = fig.add_gridspec(3, 4, hspace=0.3, wspace=0.3, 
@@ -227,11 +230,11 @@ def creer_interface_interactive(df_original):
     ax1 = fig.add_subplot(gs[0, 0])  # Distribution des prix
     ax2 = fig.add_subplot(gs[0, 1])  # Prix moyens par heure
     ax3 = fig.add_subplot(gs[0, 2])  # Opportunités par heure
-    ax4 = fig.add_subplot(gs[1, 0])  # Évolution temporelle
-    ax5 = fig.add_subplot(gs[1, 1:3])  # Heatmap
-    ax6 = fig.add_subplot(gs[2, 0])  # Créneaux optimaux
-    ax7 = fig.add_subplot(gs[2, 1])  # Prix par mois/année
-    ax8 = fig.add_subplot(gs[2, 2:])  # Statistiques textuelles
+    ax4 = fig.add_subplot(gs[0, 3])  # Créneaux optimaux
+    ax5 = fig.add_subplot(gs[1, 0])  # Évolution temporelle
+    ax6 = fig.add_subplot(gs[1, 1:3])  # Heatmap
+    ax7 = fig.add_subplot(gs[1, 3])  # Prix moyen vs Objectif (après heatmap)
+    ax8 = fig.add_subplot(gs[2, :])  # Statistiques textuelles (toute la largeur)
     
     axes = [ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8]
     
@@ -303,58 +306,81 @@ def creer_interface_interactive(df_original):
         ax3.set_title('Opportunités par Heure (≤ 15 €/MWh)')
         ax3.grid(True, alpha=0.3)
         
-        # 4. Évolution temporelle adaptative
+        # 4. Créneaux optimaux
+        repartition_optimale = heures_optimales.groupby('Heure').size()
+        ax4.bar(repartition_optimale.index, repartition_optimale.values, alpha=0.7, color='gold')
+        ax4.set_xlabel('Heure')
+        ax4.set_ylabel('Heures sélectionnées')
+        ax4.set_title('Créneaux Optimaux (40%)')
+        ax4.grid(True, alpha=0.3)
+        
+        # 5. Évolution temporelle adaptative
         is_monthly_view = (state['selection_actuelle'] != 'Toutes les données')
         
         if len(df_data) > 1:
             if is_monthly_view:
                 # Vue mensuelle : évolution journalière
                 df_temporal = df_data.resample('D')['Prix_EUR_MWh'].mean()
-                ax4.plot(df_temporal.index, df_temporal.values, marker='o', linewidth=2, color='navy')
-                ax4.set_xlabel('Jour')
-                ax4.set_title('Évolution Journalière')
+                ax5.plot(df_temporal.index, df_temporal.values, marker='o', linewidth=2, color='navy')
+                ax5.set_xlabel('Jour')
+                ax5.set_title('Évolution Journalière')
             else:
                 # Vue globale ou annuelle : évolution mensuelle
                 df_temporal = df_data.resample('M')['Prix_EUR_MWh'].mean()
-                ax4.plot(df_temporal.index, df_temporal.values, marker='o', linewidth=2, color='navy')
-                ax4.set_xlabel('Mois')
-                ax4.set_title('Évolution Mensuelle')
+                ax5.plot(df_temporal.index, df_temporal.values, marker='o', linewidth=2, color='navy')
+                ax5.set_xlabel('Mois')
+                ax5.set_title('Évolution Mensuelle')
             
-            ax4.axhline(15, color='green', linestyle='--', label='Objectif: 15 €/MWh')
-            ax4.set_ylabel('Prix moyen (€/MWh)')
-            ax4.legend()
-            ax4.grid(True, alpha=0.3)
-            ax4.tick_params(axis='x', rotation=45)
+            ax5.axhline(15, color='green', linestyle='--', label='Objectif: 15 €/MWh')
+            ax5.set_ylabel('Prix moyen (€/MWh)')
+            ax5.legend()
+            ax5.grid(True, alpha=0.3)
+            ax5.tick_params(axis='x', rotation=45)
         
-        # 5. Heatmap prix par heure et jour de la semaine
+        # 6. Heatmap prix par heure et jour de la semaine
         jours_ordre = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+        
+        # Créer une structure complète 24h x 7 jours avec toutes les heures
         pivot_data = df_data.pivot_table(values='Prix_EUR_MWh', index='JourSemaine', 
                                        columns='Heure', aggfunc='mean')
-        pivot_data = pivot_data.reindex(jours_ordre)
         
-        # Supprimer l'ancienne colorbar si elle existe
+        # Réindexer pour garantir toutes les heures (0-23) et tous les jours
+        pivot_data = pivot_data.reindex(index=jours_ordre, columns=range(24))
+        
+        # Supprimer l'ancienne colorbar si elle existe de manière sécurisée
         if state['colorbar'] is not None:
-            state['colorbar'].remove()
+            try:
+                state['colorbar'].remove()
+            except (ValueError, KeyError, AttributeError):
+                # Ignorer les erreurs si la colorbar a déjà été supprimée ou corrompue
+                pass
+            finally:
+                state['colorbar'] = None
         
-        im = ax5.imshow(pivot_data.values, cmap='RdYlGn_r', aspect='auto')
-        ax5.set_xticks(range(24))
-        ax5.set_xticklabels(range(24))
-        ax5.set_yticks(range(len(pivot_data)))
-        ax5.set_yticklabels(['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'])
-        ax5.set_xlabel('Heure')
-        ax5.set_ylabel('Jour de la semaine')
-        ax5.set_title('Heatmap Prix par Heure et Jour')
-        
-        # Créer une nouvelle colorbar et la sauvegarder
-        state['colorbar'] = plt.colorbar(im, ax=ax5, label='Prix (€/MWh)')
-        
-        # 6. Créneaux optimaux
-        repartition_optimale = heures_optimales.groupby('Heure').size()
-        ax6.bar(repartition_optimale.index, repartition_optimale.values, alpha=0.7, color='gold')
-        ax6.set_xlabel('Heure')
-        ax6.set_ylabel('Heures sélectionnées')
-        ax6.set_title('Créneaux Optimaux (40%)')
-        ax6.grid(True, alpha=0.3)
+        # Créer la heatmap avec des dimensions fixes (24h x 7 jours)
+        if not pivot_data.empty:
+            # Remplacer les NaN par une valeur neutre pour l'affichage
+            heatmap_data = pivot_data.fillna(pivot_data.mean().mean())
+            
+            im = ax6.imshow(heatmap_data.values, cmap='RdYlGn_r', aspect='auto')
+            ax6.set_xticks(range(0, 24, 2))  # Afficher toutes les 2 heures pour plus de lisibilité
+            ax6.set_xticklabels([f"{h:02d}h" for h in range(0, 24, 2)])
+            ax6.set_yticks(range(7))
+            ax6.set_yticklabels(['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'])
+            ax6.set_xlabel('Heure de la journée')
+            ax6.set_ylabel('Jour de la semaine')
+            ax6.set_title('Heatmap Prix par Heure et Jour (24h × 7j)')
+            
+            # Créer une nouvelle colorbar et la sauvegarder
+            try:
+                state['colorbar'] = plt.colorbar(im, ax=ax6, label='Prix (€/MWh)')
+            except Exception as e:
+                # En cas d'erreur, créer une colorbar simple
+                print(f"Avertissement: Problème avec la colorbar: {e}")
+                state['colorbar'] = None
+        else:
+            ax6.text(0.5, 0.5, 'Aucune donnée disponible\npour la heatmap', 
+                    ha='center', va='center', transform=ax6.transAxes)
         
         # 7. Prix moyen de la sélection vs Objectif
         prix_moyen_selection = df_data['Prix_EUR_MWh'].mean()
@@ -394,7 +420,7 @@ def creer_interface_interactive(df_original):
         ax7.legend()
         ax7.grid(True, alpha=0.3)
         
-        # 8. Statistiques détaillées
+        # 8. Statistiques détaillées - Organisées horizontalement
         ax8.axis('off')
         if state['selection_actuelle'] == 'Toutes les données':
             titre_stats = "ANALYSE COMPLÈTE DES PRIX SPOT ÉLECTRICITÉ"
@@ -403,42 +429,68 @@ def creer_interface_interactive(df_original):
             titre_stats = f"ANALYSE MENSUELLE {state['selection_actuelle']}"
             duree_desc = "1 mois complet"
         
-        stats_text = f"""
-📊 {titre_stats} - METASTAAQ
-
-🔢 Données de la période:
+        # Section 1: Données de la période
+        donnees_text = f"""🔢 DONNÉES DE LA PÉRIODE:
 • Nombre de points: {len(df_data):,} heures
 • Période: {df_data.index.min().strftime('%d/%m/%Y')} au {df_data.index.max().strftime('%d/%m/%Y')}
-• Durée: {duree_desc}
-
-💰 Statistiques des prix:
+• Durée: {duree_desc}"""
+        
+        # Section 2: Statistiques des prix
+        stats_prix_text = f"""💰 STATISTIQUES DES PRIX:
 • Prix moyen: {df_data['Prix_EUR_MWh'].mean():.2f} €/MWh
 • Prix médian: {df_data['Prix_EUR_MWh'].median():.2f} €/MWh
 • Écart-type: {df_data['Prix_EUR_MWh'].std():.2f} €/MWh
 • Prix minimum: {df_data['Prix_EUR_MWh'].min():.2f} €/MWh
-• Prix maximum: {df_data['Prix_EUR_MWh'].max():.2f} €/MWh
-
-🎯 Analyse de l'objectif (≤ 15 €/MWh):
+• Prix maximum: {df_data['Prix_EUR_MWh'].max():.2f} €/MWh"""
+        
+        # Section 3: Analyse de l'objectif
+        objectif_text = f"""🎯 ANALYSE DE L'OBJECTIF (≤ 15 €/MWh):
 • Heures favorables: {len(df_data[df_data['Prix_EUR_MWh'] <= 15]):,} ({len(df_data[df_data['Prix_EUR_MWh'] <= 15])/len(df_data)*100:.1f}%)
-• Heures à prix négatifs: {len(df_data[df_data['Prix_EUR_MWh'] < 0]):,} ({len(df_data[df_data['Prix_EUR_MWh'] < 0])/len(df_data)*100:.1f}%)
-
-⚡ Stratégie optimisée (40% de fonctionnement):
+• Heures à prix négatifs: {len(df_data[df_data['Prix_EUR_MWh'] < 0]):,} ({len(df_data[df_data['Prix_EUR_MWh'] < 0])/len(df_data)*100:.1f}%)"""
+        
+        # Section 4: Stratégie optimisée
+        strategie_text = f"""⚡ STRATÉGIE OPTIMISÉE (40% fonctionnement):
 • Coût d'achat moyen optimal: {heures_optimales['Prix_EUR_MWh'].mean():.2f} €/MWh
 • Prix seuil maximum: {heures_optimales['Prix_EUR_MWh'].max():.2f} €/MWh
 • Économie vs prix moyen: {df_data['Prix_EUR_MWh'].mean() - heures_optimales['Prix_EUR_MWh'].mean():.2f} €/MWh
-• Objectif 15€/MWh: {'✅ ATTEINT' if heures_optimales['Prix_EUR_MWh'].mean() <= 15 else '❌ NON ATTEINT'}
-
-🕐 Meilleurs créneaux horaires:
-"""
+• Objectif 15€/MWh: {'✅ ATTEINT' if heures_optimales['Prix_EUR_MWh'].mean() <= 15 else '❌ NON ATTEINT'}"""
         
-        # Ajouter le top 5 des meilleures heures
+        # Section 5: Meilleurs créneaux
         top_heures = stats_horaires.nsmallest(5, 'mean')
+        creneaux_text = "🕐 MEILLEURS CRÉNEAUX HORAIRES:\n"
         for heure, row in top_heures.iterrows():
-            stats_text += f"• {heure:02d}h: {row['mean']:.1f} €/MWh\n"
+            creneaux_text += f"• {heure:02d}h: {row['mean']:.1f} €/MWh\n"
         
-        ax8.text(0.02, 0.98, stats_text, transform=ax8.transAxes, fontsize=9,
+        # Titre principal
+        ax8.text(0.5, 0.95, f"📊 {titre_stats} - METASTAAQ", 
+                transform=ax8.transAxes, fontsize=14, fontweight='bold',
+                ha='center', va='top',
+                bbox=dict(boxstyle="round,pad=0.5", facecolor="navy", alpha=0.8, edgecolor='white'),
+                color='white')
+        
+        # Disposition en 3 colonnes
+        # Colonne 1: Données + Statistiques prix
+        ax8.text(0.02, 0.8, donnees_text, transform=ax8.transAxes, fontsize=9,
                 verticalalignment='top', fontfamily='monospace',
-                bbox=dict(boxstyle="round,pad=0.5", facecolor="lightblue", alpha=0.8))
+                bbox=dict(boxstyle="round,pad=0.4", facecolor="lightblue", alpha=0.7))
+        
+        ax8.text(0.02, 0.45, stats_prix_text, transform=ax8.transAxes, fontsize=9,
+                verticalalignment='top', fontfamily='monospace',
+                bbox=dict(boxstyle="round,pad=0.4", facecolor="lightgreen", alpha=0.7))
+        
+        # Colonne 2: Objectif + Stratégie
+        ax8.text(0.35, 0.8, objectif_text, transform=ax8.transAxes, fontsize=9,
+                verticalalignment='top', fontfamily='monospace',
+                bbox=dict(boxstyle="round,pad=0.4", facecolor="lightyellow", alpha=0.7))
+        
+        ax8.text(0.35, 0.45, strategie_text, transform=ax8.transAxes, fontsize=9,
+                verticalalignment='top', fontfamily='monospace',
+                bbox=dict(boxstyle="round,pad=0.4", facecolor="lightcoral", alpha=0.7))
+        
+        # Colonne 3: Créneaux
+        ax8.text(0.68, 0.8, creneaux_text, transform=ax8.transAxes, fontsize=9,
+                verticalalignment='top', fontfamily='monospace',
+                bbox=dict(boxstyle="round,pad=0.4", facecolor="lightgray", alpha=0.7))
         
         # Mettre à jour le titre principal
         fig.suptitle(f'Analyse Prix Spot - METASTAAQ ({state["selection_actuelle"]})', 
@@ -468,6 +520,17 @@ def creer_interface_interactive(df_original):
     
     # Affichage initial avec toutes les données
     mettre_a_jour_graphiques()
+    
+    # Ajouter un gestionnaire de fermeture pour nettoyer les ressources
+    def on_close(event):
+        """Nettoie les ressources quand la figure est fermée"""
+        try:
+            if state['colorbar'] is not None:
+                state['colorbar'] = None
+        except:
+            pass
+    
+    fig.canvas.mpl_connect('close_event', on_close)
     
     plt.show()
     
@@ -561,7 +624,13 @@ def main():
     print("   • Par mois: Analyse détaillée d'un mois spécifique")
     print("\n⚠️  Fermez la fenêtre graphique pour continuer le script.")
     
-    fig_interactive = creer_interface_interactive(df)
+    try:
+        fig_interactive = creer_interface_interactive(df)
+        print("✅ Interface interactive créée avec succès.")
+    except Exception as e:
+        print(f"⚠️  Erreur lors de la création de l'interface: {e}")
+        print("📊 Création des graphiques statiques à la place...")
+        creer_graphiques_analyse(df, stats_horaires, heures_optimales)
     
     # Sauvegarder les résultats de base
     print(f"\n💾 Sauvegarde des résultats...")
