@@ -219,9 +219,9 @@ def creer_interface_interactive(df_original):
     # Créer la figure principale
     fig = plt.figure(figsize=(20, 15))
     
-    # Zone pour les graphiques (espace réduit pour les contrôles)
+    # Zone pour les graphiques (décalage suffisant pour éviter le chevauchement)
     gs = fig.add_gridspec(3, 4, hspace=0.3, wspace=0.3, 
-                         left=0.15, right=0.95, top=0.92, bottom=0.05)
+                         left=0.18, right=0.95, top=0.92, bottom=0.05)
     
     # Axes pour les graphiques
     ax1 = fig.add_subplot(gs[0, 0])  # Distribution des prix
