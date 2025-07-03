@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from datetime import datetime, timedelta
-from matplotlib.widgets import RadioButtons, Button
+from matplotlib.widgets import RadioButtons, Button, TextBox
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -44,9 +44,9 @@ def charger_donnees_prix():
     
     return df
 
-def analyser_patterns_horaires(df):
+def analyser_patterns_horaires(df, objectif_prix=15):
     """Analyse les patterns de prix par heure de la journée"""
-    print("\n🕐 Analyse des patterns horaires...")
+    print(f"\n🕐 Analyse des patterns horaires (objectif: {objectif_prix} €/MWh)...")
     
     # Statistiques par heure
     stats_horaires = df.groupby('Heure')['Prix_EUR_MWh'].agg([
@@ -58,15 +58,15 @@ def analyser_patterns_horaires(df):
     total_heures = df.groupby('Heure').size()
     stats_horaires['pct_prix_negatifs'] = (prix_negatifs / total_heures * 100).fillna(0).round(1)
     
-    # Pourcentage d'heures à moins de 15 €/MWh par heure
-    prix_bas = df[df['Prix_EUR_MWh'] <= 15].groupby('Heure').size()
-    stats_horaires['pct_prix_bas_15'] = (prix_bas / total_heures * 100).fillna(0).round(1)
+    # Pourcentage d'heures à moins de l'objectif par heure
+    prix_bas = df[df['Prix_EUR_MWh'] <= objectif_prix].groupby('Heure').size()
+    stats_horaires[f'pct_prix_bas_{int(objectif_prix)}'] = (prix_bas / total_heures * 100).fillna(0).round(1)
     
     return stats_horaires
 
-def analyser_creneaux_rentables(df, seuil_prix=15, pct_fonctionnement=40):
+def analyser_creneaux_rentables(df, objectif_prix=15, pct_fonctionnement=40):
     """Identifie les créneaux les plus rentables selon l'objectif de fonctionnement"""
-    print(f"\n🎯 Analyse des créneaux rentables (seuil: {seuil_prix} €/MWh, fonctionnement: {pct_fonctionnement}%)")
+    print(f"\n🎯 Analyse des créneaux rentables (objectif: {objectif_prix} €/MWh, fonctionnement: {pct_fonctionnement}%)")
     
     # Trier par prix croissant
     df_sorted = df.sort_values('Prix_EUR_MWh')
@@ -87,6 +87,7 @@ def analyser_creneaux_rentables(df, seuil_prix=15, pct_fonctionnement=40):
     print(f"   • Coût médian d'achat: {cout_median_optimal:.2f} €/MWh")
     print(f"   • Prix max dans la sélection: {heures_optimales['Prix_EUR_MWh'].max():.2f} €/MWh")
     print(f"   • Nombre d'heures à prix négatifs: {len(heures_optimales[heures_optimales['Prix_EUR_MWh'] < 0]):,}")
+    print(f"   • Objectif {objectif_prix}€/MWh: {'✅ ATTEINT' if cout_moyen_optimal <= objectif_prix else '❌ NON ATTEINT'}")
     
     # Analyse des patterns dans les heures optimales
     print(f"\n🕐 Répartition horaire des créneaux optimaux:")
@@ -118,9 +119,9 @@ def obtenir_periodes_disponibles(df):
             mois.append(f"{annee}-{mois_num:02d}")
     return annees, mois
 
-def creer_graphiques_analyse(df, stats_horaires, heures_optimales):
+def creer_graphiques_analyse(df, stats_horaires, heures_optimales, objectif_prix=15):
     """Crée les graphiques d'analyse des prix spot"""
-    print("\n📈 Création des graphiques d'analyse...")
+    print(f"\n📈 Création des graphiques d'analyse (objectif: {objectif_prix} €/MWh)...")
     
     fig, axes = plt.subplots(2, 3, figsize=(20, 12))
     fig.suptitle('Analyse des Prix Spot - Optimisation METASTAAQ', fontsize=16, fontweight='bold')
@@ -129,7 +130,7 @@ def creer_graphiques_analyse(df, stats_horaires, heures_optimales):
     axes[0, 0].hist(df['Prix_EUR_MWh'], bins=50, alpha=0.7, color='skyblue', edgecolor='black')
     axes[0, 0].axvline(df['Prix_EUR_MWh'].mean(), color='red', linestyle='--', 
                        label=f'Moyenne: {df["Prix_EUR_MWh"].mean():.1f} €/MWh')
-    axes[0, 0].axvline(15, color='green', linestyle='--', label='Objectif: 15 €/MWh')
+    axes[0, 0].axvline(objectif_prix, color='green', linestyle='--', label=f'Objectif: {objectif_prix} €/MWh')
     axes[0, 0].set_xlabel('Prix (€/MWh)')
     axes[0, 0].set_ylabel('Fréquence')
     axes[0, 0].set_title('Distribution des Prix Spot')
@@ -138,7 +139,7 @@ def creer_graphiques_analyse(df, stats_horaires, heures_optimales):
     
     # 2. Prix moyens par heure
     axes[0, 1].bar(stats_horaires.index, stats_horaires['mean'], alpha=0.7, color='coral')
-    axes[0, 1].axhline(15, color='green', linestyle='--', label='Objectif: 15 €/MWh')
+    axes[0, 1].axhline(objectif_prix, color='green', linestyle='--', label=f'Objectif: {objectif_prix} €/MWh')
     axes[0, 1].set_xlabel('Heure de la journée')
     axes[0, 1].set_ylabel('Prix moyen (€/MWh)')
     axes[0, 1].set_title('Prix Moyen par Heure')
@@ -146,16 +147,18 @@ def creer_graphiques_analyse(df, stats_horaires, heures_optimales):
     axes[0, 1].grid(True, alpha=0.3)
     
     # 3. Pourcentage d'heures à prix bas par heure
-    axes[0, 2].bar(stats_horaires.index, stats_horaires['pct_prix_bas_15'], alpha=0.7, color='lightgreen')
+    colonne_prix_bas = f'pct_prix_bas_{int(objectif_prix)}'
+    if colonne_prix_bas in stats_horaires.columns:
+        axes[0, 2].bar(stats_horaires.index, stats_horaires[colonne_prix_bas], alpha=0.7, color='lightgreen')
     axes[0, 2].set_xlabel('Heure de la journée')
-    axes[0, 2].set_ylabel('% heures ≤ 15 €/MWh')
-    axes[0, 2].set_title('Opportunités par Heure (≤ 15 €/MWh)')
+    axes[0, 2].set_ylabel(f'% heures ≤ {objectif_prix} €/MWh')
+    axes[0, 2].set_title(f'Opportunités par Heure (≤ {objectif_prix} €/MWh)')
     axes[0, 2].grid(True, alpha=0.3)
     
     # 4. Évolution des prix dans le temps
     df_monthly = df.resample('M')['Prix_EUR_MWh'].mean()
     axes[1, 0].plot(df_monthly.index, df_monthly.values, marker='o', linewidth=2, color='navy')
-    axes[1, 0].axhline(15, color='green', linestyle='--', label='Objectif: 15 €/MWh')
+    axes[1, 0].axhline(objectif_prix, color='green', linestyle='--', label=f'Objectif: {objectif_prix} €/MWh')
     axes[1, 0].set_xlabel('Mois')
     axes[1, 0].set_ylabel('Prix moyen (€/MWh)')
     axes[1, 0].set_title('Évolution Mensuelle des Prix')
@@ -216,7 +219,8 @@ def creer_interface_interactive(df_original):
         'options': options_radio,
         'annees': annees,
         'mois': mois,
-        'colorbar': None  # Pour éviter la duplication de la colorbar
+        'colorbar': None,  # Pour éviter la duplication de la colorbar
+        'objectif_prix': 15.0  # Prix objectif par défaut
     }
     
     # Créer la figure principale avec un numéro unique
@@ -238,13 +242,19 @@ def creer_interface_interactive(df_original):
     
     axes = [ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8]
     
-    # Zone pour les contrôles (côté gauche) - radio buttons réduits
-    ax_radio = fig.add_axes([0.02, 0.1, 0.11, 0.8])
+    # Zone pour les contrôles (côté gauche)
+    # Radio buttons pour la période
+    ax_radio = fig.add_axes([0.02, 0.15, 0.11, 0.7])
     radio = RadioButtons(ax_radio, options_radio)
     radio.set_active(0)  # "Toutes les données" par défaut
     
-    # Titre pour les contrôles
-    fig.text(0.02, 0.95, 'Période:', fontsize=11, fontweight='bold')
+    # TextBox pour le prix objectif
+    ax_textbox = fig.add_axes([0.02, 0.05, 0.11, 0.04])
+    textbox = TextBox(ax_textbox, '', initial=str(state['objectif_prix']))
+    
+    # Titres pour les contrôles
+    fig.text(0.02, 0.92, 'Période:', fontsize=11, fontweight='bold')
+    fig.text(0.02, 0.11, 'Prix objectif (€/MWh):', fontsize=10, fontweight='bold')
     
     def mettre_a_jour_graphiques():
         """Met à jour tous les graphiques avec les données filtrées"""
@@ -267,8 +277,9 @@ def creer_interface_interactive(df_original):
         total_heures = df_data.groupby('Heure').size()
         stats_horaires['pct_prix_negatifs'] = (prix_negatifs / total_heures * 100).fillna(0).round(1)
         
-        prix_bas = df_data[df_data['Prix_EUR_MWh'] <= 15].groupby('Heure').size()
-        stats_horaires['pct_prix_bas_15'] = (prix_bas / total_heures * 100).fillna(0).round(1)
+        objectif_prix = state['objectif_prix']
+        prix_bas = df_data[df_data['Prix_EUR_MWh'] <= objectif_prix].groupby('Heure').size()
+        stats_horaires[f'pct_prix_bas_{int(objectif_prix)}'] = (prix_bas / total_heures * 100).fillna(0).round(1)
         
         # Créneaux optimaux pour toutes les données
         nb_heures_cible = int(len(df_data) * 40 / 100)
@@ -282,7 +293,7 @@ def creer_interface_interactive(df_original):
         ax1.hist(df_data['Prix_EUR_MWh'], bins=50, alpha=0.7, color='skyblue', edgecolor='black')
         ax1.axvline(df_data['Prix_EUR_MWh'].mean(), color='red', linestyle='--', 
                    label=f'Moyenne: {df_data["Prix_EUR_MWh"].mean():.1f} €/MWh')
-        ax1.axvline(15, color='green', linestyle='--', label='Objectif: 15 €/MWh')
+        ax1.axvline(objectif_prix, color='green', linestyle='--', label=f'Objectif: {objectif_prix} €/MWh')
         ax1.set_xlabel('Prix (€/MWh)')
         ax1.set_ylabel('Fréquence')
         ax1.set_title('Distribution des Prix')
@@ -291,7 +302,7 @@ def creer_interface_interactive(df_original):
         
         # 2. Prix moyens par heure
         ax2.bar(stats_horaires.index, stats_horaires['mean'], alpha=0.7, color='coral')
-        ax2.axhline(15, color='green', linestyle='--', label='Objectif: 15 €/MWh')
+        ax2.axhline(objectif_prix, color='green', linestyle='--', label=f'Objectif: {objectif_prix} €/MWh')
         ax2.set_xlabel('Heure')
         ax2.set_ylabel('Prix moyen (€/MWh)')
         ax2.set_title('Prix Moyen par Heure')
@@ -299,11 +310,13 @@ def creer_interface_interactive(df_original):
         ax2.grid(True, alpha=0.3)
         
         # 3. Opportunités par heure
-        ax3.bar(stats_horaires.index, stats_horaires['pct_prix_bas_15'], 
-               alpha=0.7, color='lightgreen')
+        colonne_prix_bas = f'pct_prix_bas_{int(objectif_prix)}'
+        if colonne_prix_bas in stats_horaires.columns:
+            ax3.bar(stats_horaires.index, stats_horaires[colonne_prix_bas], 
+                   alpha=0.7, color='lightgreen')
         ax3.set_xlabel('Heure')
-        ax3.set_ylabel('% heures ≤ 15 €/MWh')
-        ax3.set_title('Opportunités par Heure (≤ 15 €/MWh)')
+        ax3.set_ylabel(f'% heures ≤ {objectif_prix} €/MWh')
+        ax3.set_title(f'Opportunités par Heure (≤ {objectif_prix} €/MWh)')
         ax3.grid(True, alpha=0.3)
         
         # 4. Créneaux optimaux
@@ -331,7 +344,7 @@ def creer_interface_interactive(df_original):
                 ax5.set_xlabel('Mois')
                 ax5.set_title('Évolution Mensuelle')
             
-            ax5.axhline(15, color='green', linestyle='--', label='Objectif: 15 €/MWh')
+            ax5.axhline(objectif_prix, color='green', linestyle='--', label=f'Objectif: {objectif_prix} €/MWh')
             ax5.set_ylabel('Prix moyen (€/MWh)')
             ax5.legend()
             ax5.grid(True, alpha=0.3)
@@ -384,14 +397,13 @@ def creer_interface_interactive(df_original):
         
         # 7. Prix moyen de la sélection vs Objectif
         prix_moyen_selection = df_data['Prix_EUR_MWh'].mean()
-        objectif = 15.0
         
         # Créer un graphique simple : Prix moyen vs Objectif
         categories = ['Prix Moyen\nSélection', 'Objectif\nMETASTAAQ']
-        valeurs = [prix_moyen_selection, objectif]
+        valeurs = [prix_moyen_selection, objectif_prix]
         
         # Couleurs : rouge si au-dessus de l'objectif, vert si en dessous
-        couleur_prix = 'red' if prix_moyen_selection > objectif else 'green'
+        couleur_prix = 'red' if prix_moyen_selection > objectif_prix else 'green'
         couleurs = [couleur_prix, 'blue']
         
         bars = ax7.bar(categories, valeurs, alpha=0.7, color=couleurs)
@@ -402,7 +414,7 @@ def creer_interface_interactive(df_original):
                     f'{valeur:.1f} €/MWh', ha='center', va='bottom', fontweight='bold')
         
         # Calculer l'écart
-        ecart = prix_moyen_selection - objectif
+        ecart = prix_moyen_selection - objectif_prix
         if ecart > 0:
             statut = f'+{ecart:.1f} €/MWh au-dessus'
             couleur_ecart = 'red'
@@ -412,10 +424,10 @@ def creer_interface_interactive(df_original):
         
         ax7.set_ylabel('Prix (€/MWh)')
         ax7.set_title(f'Prix Moyen vs Objectif\n({statut})', color=couleur_ecart)
-        ax7.set_ylim(0, max(prix_moyen_selection, objectif) * 1.2)
+        ax7.set_ylim(0, max(prix_moyen_selection, objectif_prix) * 1.2)
         
         # Ligne de référence et mise en forme commune
-        ax7.axhline(15, color='green', linestyle='--', label='Objectif: 15 €/MWh')
+        ax7.axhline(objectif_prix, color='green', linestyle='--', label=f'Objectif: {objectif_prix} €/MWh')
         ax7.set_ylabel('Prix moyen (€/MWh)')
         ax7.legend()
         ax7.grid(True, alpha=0.3)
@@ -444,16 +456,19 @@ def creer_interface_interactive(df_original):
 • Prix maximum: {df_data['Prix_EUR_MWh'].max():.2f} €/MWh"""
         
         # Section 3: Analyse de l'objectif
-        objectif_text = f"""🎯 ANALYSE DE L'OBJECTIF (≤ 15 €/MWh):
-• Heures favorables: {len(df_data[df_data['Prix_EUR_MWh'] <= 15]):,} ({len(df_data[df_data['Prix_EUR_MWh'] <= 15])/len(df_data)*100:.1f}%)
+        heures_favorables = len(df_data[df_data['Prix_EUR_MWh'] <= objectif_prix])
+        pct_favorables = (heures_favorables / len(df_data)) * 100
+        objectif_text = f"""🎯 ANALYSE DE L'OBJECTIF (≤ {objectif_prix} €/MWh):
+• Heures favorables: {heures_favorables:,} ({pct_favorables:.1f}%)
 • Heures à prix négatifs: {len(df_data[df_data['Prix_EUR_MWh'] < 0]):,} ({len(df_data[df_data['Prix_EUR_MWh'] < 0])/len(df_data)*100:.1f}%)"""
         
         # Section 4: Stratégie optimisée
+        cout_moyen_optimal = heures_optimales['Prix_EUR_MWh'].mean()
         strategie_text = f"""⚡ STRATÉGIE OPTIMISÉE (40% fonctionnement):
-• Coût d'achat moyen optimal: {heures_optimales['Prix_EUR_MWh'].mean():.2f} €/MWh
+• Coût d'achat moyen optimal: {cout_moyen_optimal:.2f} €/MWh
 • Prix seuil maximum: {heures_optimales['Prix_EUR_MWh'].max():.2f} €/MWh
-• Économie vs prix moyen: {df_data['Prix_EUR_MWh'].mean() - heures_optimales['Prix_EUR_MWh'].mean():.2f} €/MWh
-• Objectif 15€/MWh: {'✅ ATTEINT' if heures_optimales['Prix_EUR_MWh'].mean() <= 15 else '❌ NON ATTEINT'}"""
+• Économie vs prix moyen: {df_data['Prix_EUR_MWh'].mean() - cout_moyen_optimal:.2f} €/MWh
+• Objectif {objectif_prix}€/MWh: {'✅ ATTEINT' if cout_moyen_optimal <= objectif_prix else '❌ NON ATTEINT'}"""
         
         # Section 5: Meilleurs créneaux - Calculer les plages horaires
         def calculer_plages_horaires(heures_optimales_data):
@@ -575,8 +590,24 @@ def creer_interface_interactive(df_original):
         
         mettre_a_jour_graphiques()
     
+    def on_textbox_submit(text):
+        """Gestionnaire pour la saisie du prix objectif"""
+        try:
+            nouveau_prix = float(text)
+            if nouveau_prix > 0:  # Validation: prix positif
+                state['objectif_prix'] = nouveau_prix
+                mettre_a_jour_graphiques()
+                print(f"📊 Prix objectif mis à jour: {nouveau_prix} €/MWh")
+            else:
+                print("⚠️ Le prix objectif doit être positif")
+                textbox.set_val(str(state['objectif_prix']))  # Restaurer la valeur précédente
+        except ValueError:
+            print("⚠️ Veuillez entrer un nombre valide")
+            textbox.set_val(str(state['objectif_prix']))  # Restaurer la valeur précédente
+    
     # Connecter les événements
     radio.on_clicked(on_radio_clicked)
+    textbox.on_submit(on_textbox_submit)
     
     # Affichage initial avec toutes les données
     mettre_a_jour_graphiques()
@@ -624,7 +655,7 @@ def analyser_scenarios_fonctionnement(df):
     
     return df_scenarios
 
-def recommandations_strategiques(df, stats_horaires, heures_optimales, cout_optimal):
+def recommandations_strategiques(df, stats_horaires, heures_optimales, cout_optimal, objectif_prix=15):
     """Génère les recommandations stratégiques"""
     print("\n" + "="*60)
     print("🎯 RECOMMANDATIONS STRATÉGIQUES - METASTAAQ")
@@ -646,12 +677,12 @@ def recommandations_strategiques(df, stats_horaires, heures_optimales, cout_opti
     print(f"\n💡 STRATÉGIE RECOMMANDÉE:")
     print(f"   • Fonctionnement optimal: 40% du temps ({len(heures_optimales):,} heures/an)")
     print(f"   • Coût d'achat moyen: {cout_optimal:.2f} €/MWh")
-    print(f"   • Objectif 15 €/MWh: {'✅ ATTEINT' if cout_optimal <= 15 else '❌ NON ATTEINT'}")
+    print(f"   • Objectif {objectif_prix} €/MWh: {'✅ ATTEINT' if cout_optimal <= objectif_prix else '❌ NON ATTEINT'}")
     
-    if cout_optimal <= 15:
-        print(f"   • Marge sur objectif: {15 - cout_optimal:.2f} €/MWh")
+    if cout_optimal <= objectif_prix:
+        print(f"   • Marge sur objectif: {objectif_prix - cout_optimal:.2f} €/MWh")
     else:
-        print(f"   • Écart à l'objectif: +{cout_optimal - 15:.2f} €/MWh")
+        print(f"   • Écart à l'objectif: +{cout_optimal - objectif_prix:.2f} €/MWh")
     
     # Créneaux préférentiels
     heures_preferentielles = heures_optimales.groupby('Heure').size().sort_values(ascending=False).head(8)
@@ -668,11 +699,12 @@ def main():
     # Charger les données
     df = charger_donnees_prix()
     
-    # Analyser les patterns horaires
-    stats_horaires = analyser_patterns_horaires(df)
+    # Analyser les patterns horaires (avec prix objectif par défaut)
+    objectif_prix_defaut = 15.0
+    stats_horaires = analyser_patterns_horaires(df, objectif_prix_defaut)
     
     # Identifier les créneaux rentables
-    heures_optimales, cout_optimal = analyser_creneaux_rentables(df, seuil_prix=15, pct_fonctionnement=40)
+    heures_optimales, cout_optimal = analyser_creneaux_rentables(df, objectif_prix_defaut, pct_fonctionnement=40)
     
     # Analyser différents scénarios
     scenarios = analyser_scenarios_fonctionnement(df)
@@ -690,7 +722,10 @@ def main():
     except Exception as e:
         print(f"⚠️  Erreur lors de la création de l'interface: {e}")
         print("📊 Création des graphiques statiques à la place...")
-        creer_graphiques_analyse(df, stats_horaires, heures_optimales)
+        creer_graphiques_analyse(df, stats_horaires, heures_optimales, objectif_prix_defaut)
+    
+    # Générer les recommandations stratégiques
+    recommandations_strategiques(df, stats_horaires, heures_optimales, cout_optimal, objectif_prix_defaut)
     
     # Sauvegarder les résultats de base
     print(f"\n💾 Sauvegarde des résultats...")
