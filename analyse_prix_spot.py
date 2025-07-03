@@ -537,11 +537,11 @@ def creer_interface_interactive(df_original):
             creneaux_text += f"• {heure:02d}h: {row['mean']:.1f} €/MWh\n"
         
         # Titre principal
-        ax8.text(0.5, 0.95, f"📊 {titre_stats} - METASTAAQ", 
-                transform=ax8.transAxes, fontsize=14, fontweight='bold',
-                ha='center', va='top',
-                bbox=dict(boxstyle="round,pad=0.5", facecolor="navy", alpha=0.8, edgecolor='white'),
-                color='white')
+        #ax8.text(0.5, 0.95, f"📊 {titre_stats} - METASTAAQ", 
+        #        transform=ax8.transAxes, fontsize=14, fontweight='bold',
+        #        ha='center', va='top',
+        #        bbox=dict(boxstyle="round,pad=0.5", facecolor="navy", alpha=0.8, edgecolor='white'),
+        #        color='white')
         
         # Disposition en 3 colonnes
         # Colonne 1: Données + Statistiques prix
