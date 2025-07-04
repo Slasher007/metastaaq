@@ -1,4 +1,7 @@
 pandas
 requests
 pvlib
-entsoe-py 
+entsoe-py
+matplotlib
+seaborn
+numpy 
