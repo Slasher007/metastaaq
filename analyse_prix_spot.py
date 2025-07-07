@@ -190,8 +190,8 @@ def creer_graphiques_analyse(df, stats_horaires, heures_optimales, objectif_prix
     axes[1, 2].grid(True, alpha=0.3)
     
     plt.tight_layout()
-    plt.savefig('analyse_prix_spot_metastaaq.png', dpi=300, bbox_inches='tight')
-    plt.show()
+    plt.savefig('analyse_data_2020_2025/analyse_prix_spot_metastaaq.png', dpi=300, bbox_inches='tight')
+    # plt.show() - Supprimé pour ne pas afficher les graphiques
 
 def creer_interface_interactive(df_original):
     """Crée une interface interactive pour l'analyse des prix spot"""
@@ -623,7 +623,7 @@ def creer_interface_interactive(df_original):
     
     fig.canvas.mpl_connect('close_event', on_close)
     
-    plt.show()
+    # plt.show() - Supprimé pour ne pas afficher les graphiques interactifs
     
     return fig
 
@@ -833,8 +833,8 @@ def creer_graphiques_heures_disponibles(resultats_annees):
             ax4.grid(True, alpha=0.3)
         
         plt.tight_layout()
-        plt.savefig(f'analyse_data_2024_2025/analyse_heures_disponibles_{annee}.png', dpi=300, bbox_inches='tight')
-        plt.show()
+        plt.savefig(f'analyse_data_2020_2025/analyse_heures_disponibles_{annee}.png', dpi=300, bbox_inches='tight')
+        # plt.show() - Supprimé pour ne pas afficher les graphiques
 
 def analyser_saisonnalite(df):
     """Analyse la saisonnalité pour 2023 et 2024 à 15 €/MWh"""
@@ -854,22 +854,34 @@ def analyser_saisonnalite(df):
             df_annee = df[df['Annee'] == annee].copy()
             
             # Calculer les heures disponibles par mois pour chaque puissance
-            tableau_mois = {}
+            # Structure modifiée: puissances en index, mois en colonnes
+            tableau_puissances = {}
+            
+            # Créer la liste des mois dans l'ordre chronologique
+            mois_ordonnes = []
+            noms_mois = []
+            for mois in range(1, 13):
+                df_mois = df_annee[df_annee['Mois'] == mois]
+                if len(df_mois) > 0:
+                    nom_mois = df_mois['Mois_nom'].iloc[0]
+                    mois_ordonnes.append(mois)
+                    noms_mois.append(nom_mois)
             
             for puissance in puissances:
-                tableau_mois[f'{puissance} MW'] = {}
+                tableau_puissances[f'{puissance} MW'] = {}
                 
-                for mois in range(1, 13):
+                for i, mois in enumerate(mois_ordonnes):
                     df_mois = df_annee[df_annee['Mois'] == mois]
                     heures_disponibles = len(df_mois[df_mois['Prix_EUR_MWh'] <= prix_cible])
-                    nom_mois = df_mois['Mois_nom'].iloc[0] if len(df_mois) > 0 else f'Mois_{mois}'
-                    tableau_mois[f'{puissance} MW'][nom_mois] = heures_disponibles
+                    nom_mois = noms_mois[i]
+                    tableau_puissances[f'{puissance} MW'][nom_mois] = heures_disponibles
             
-            # Convertir en DataFrame
-            tableau_saisonnalite = pd.DataFrame(tableau_mois)
+            # Convertir en DataFrame avec mois en colonnes et puissances en index
+            tableau_saisonnalite = pd.DataFrame(tableau_puissances).T
             resultats_saisonnalite[annee] = tableau_saisonnalite
             
             print(f"📊 Heures disponibles par mois à {prix_cible} €/MWh pour {annee}:")
+            print("   (Structure: Puissances en lignes, Mois en colonnes)")
             print(tableau_saisonnalite)
     
     return resultats_saisonnalite
@@ -883,14 +895,15 @@ def creer_graphiques_saisonnalite(resultats_saisonnalite):
         fig.suptitle(f'Saisonnalité de la Puissance Disponible - Année {annee} (15 €/MWh)', 
                     fontsize=16, fontweight='bold')
         
-        # Préparer les données
-        mois = tableau.index
+        # Préparer les données - Structure modifiée: puissances en index, mois en colonnes
+        puissances = tableau.index  # Maintenant les puissances sont en index
+        mois = tableau.columns      # Maintenant les mois sont en colonnes
         mois_num = range(1, len(mois) + 1)
         
         # Graphique 1: Courbes par puissance
         ax1 = axes[0, 0]
-        for puissance in tableau.columns:
-            valeurs = tableau[puissance].values
+        for puissance in puissances:
+            valeurs = tableau.loc[puissance].values
             ax1.plot(mois_num, valeurs, marker='o', linewidth=2, label=puissance)
         
         ax1.set_xlabel('Mois')
@@ -903,11 +916,11 @@ def creer_graphiques_saisonnalite(resultats_saisonnalite):
         
         # Graphique 2: Heatmap
         ax2 = axes[0, 1]
-        im = ax2.imshow(tableau.T.values, cmap='RdYlGn', aspect='auto')
+        im = ax2.imshow(tableau.values, cmap='RdYlGn', aspect='auto')
         ax2.set_xticks(range(len(mois)))
         ax2.set_xticklabels([m[:3] for m in mois], rotation=45)
-        ax2.set_yticks(range(len(tableau.columns)))
-        ax2.set_yticklabels(tableau.columns)
+        ax2.set_yticks(range(len(puissances)))
+        ax2.set_yticklabels(puissances)
         ax2.set_xlabel('Mois')
         ax2.set_ylabel('Puissance (MW)')
         ax2.set_title(f'Heatmap saisonnalité - {annee}')
@@ -918,8 +931,8 @@ def creer_graphiques_saisonnalite(resultats_saisonnalite):
         x = np.arange(len(mois))
         width = 0.15
         
-        for i, puissance in enumerate(tableau.columns):
-            valeurs = tableau[puissance].values
+        for i, puissance in enumerate(puissances):
+            valeurs = tableau.loc[puissance].values
             ax3.bar(x + i*width, valeurs, width, label=puissance)
         
         ax3.set_xlabel('Mois')
@@ -932,7 +945,7 @@ def creer_graphiques_saisonnalite(resultats_saisonnalite):
         
         # Graphique 4: Moyenne mobile
         ax4 = axes[1, 1]
-        moyenne_mensuelle = tableau.mean(axis=1)
+        moyenne_mensuelle = tableau.mean(axis=0)  # Moyenne des puissances pour chaque mois
         ax4.plot(mois_num, moyenne_mensuelle, marker='o', linewidth=3, color='red', label='Moyenne')
         ax4.fill_between(mois_num, moyenne_mensuelle, alpha=0.3, color='red')
         
@@ -945,15 +958,15 @@ def creer_graphiques_saisonnalite(resultats_saisonnalite):
         ax4.grid(True, alpha=0.3)
         
         plt.tight_layout()
-        plt.savefig(f'analyse_data_2024_2025/analyse_saisonnalite_{annee}.png', dpi=300, bbox_inches='tight')
-        plt.show()
+        plt.savefig(f'analyse_data_2020_2025/analyse_saisonnalite_{annee}.png', dpi=300, bbox_inches='tight')
+        # plt.show() - Supprimé pour ne pas afficher les graphiques
 
 def sauvegarder_resultats_excel(resultats_annees, resultats_saisonnalite):
     """Sauvegarde tous les résultats dans des fichiers Excel"""
     print("\n💾 Sauvegarde des résultats en Excel...")
     
     # 1. Sauvegarder les analyses par année
-    with pd.ExcelWriter('analyse_data_2024_2025/analyse_heures_disponibles_par_annee.xlsx') as writer:
+    with pd.ExcelWriter('analyse_data_2020_2025/analyse_heures_disponibles_par_annee.xlsx') as writer:
         for annee, tableau in resultats_annees.items():
             tableau.to_excel(writer, sheet_name=f'Annee_{annee}')
         
@@ -967,17 +980,23 @@ def sauvegarder_resultats_excel(resultats_annees, resultats_saisonnalite):
         synthese.to_excel(writer, sheet_name='Synthese_15_EUR_MWh')
     
     # 2. Sauvegarder les analyses de saisonnalité
-    with pd.ExcelWriter('analyse_data_2024_2025/analyse_saisonnalite_2023_2024.xlsx') as writer:
+    with pd.ExcelWriter('analyse_data_2020_2025/analyse_saisonnalite_2023_2024.xlsx') as writer:
         for annee, tableau in resultats_saisonnalite.items():
             tableau.to_excel(writer, sheet_name=f'Saisonnalite_{annee}')
         
         # Comparaison 2023 vs 2024
         if 2023 in resultats_saisonnalite and 2024 in resultats_saisonnalite:
             comparaison = pd.DataFrame()
-            for puissance in resultats_saisonnalite[2023].columns:
-                comparaison[f'{puissance}_2023'] = resultats_saisonnalite[2023][puissance]
-                if puissance in resultats_saisonnalite[2024].columns:
-                    comparaison[f'{puissance}_2024'] = resultats_saisonnalite[2024][puissance]
+            # Maintenant les puissances sont en index, donc on utilise .index au lieu de .columns
+            for puissance in resultats_saisonnalite[2023].index:
+                for mois in resultats_saisonnalite[2023].columns:
+                    comparaison[f'{mois}_{puissance}_2023'] = [resultats_saisonnalite[2023].loc[puissance, mois]]
+                    if puissance in resultats_saisonnalite[2024].index and mois in resultats_saisonnalite[2024].columns:
+                        comparaison[f'{mois}_{puissance}_2024'] = [resultats_saisonnalite[2024].loc[puissance, mois]]
+            
+            # Transposer pour avoir une meilleure lisibilité
+            if not comparaison.empty:
+                comparaison = comparaison.T
             
             comparaison.to_excel(writer, sheet_name='Comparaison_2023_vs_2024')
     
@@ -1053,9 +1072,9 @@ def main():
     
     # Sauvegarder les résultats de base
     print(f"\n💾 Sauvegarde des résultats...")
-    stats_horaires.to_csv('analyse_data_2024_2025/analyse_prix_horaires.csv')
-    scenarios.to_csv('analyse_data_2024_2025/scenarios_fonctionnement.csv', index=False)
-    heures_optimales.to_csv('analyse_data_2024_2025/creneaux_optimaux_40pct.csv')
+    stats_horaires.to_csv('analyse_data_2020_2025/analyse_prix_horaires.csv')
+    scenarios.to_csv('analyse_data_2020_2025/scenarios_fonctionnement.csv', index=False)
+    heures_optimales.to_csv('analyse_data_2020_2025/creneaux_optimaux_40pct.csv')
     print("✅ Fichiers sauvegardés: analyse_prix_horaires.csv, scenarios_fonctionnement.csv, creneaux_optimaux_40pct.csv")
     
     # Lancer l'analyse de puissance disponible

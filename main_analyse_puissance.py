@@ -28,8 +28,8 @@ def main():
         sys.exit(1)
     
     # Créer le dossier de résultats s'il n'existe pas
-    os.makedirs('analyse_data_2024_2025', exist_ok=True)
-    print("📁 Dossier 'analyse_data_2024_2025' créé/vérifié")
+    os.makedirs('analyse_data_2020_2025', exist_ok=True)
+    print("📁 Dossier 'analyse_data_2020_2025' créé/vérifié")
     
     try:
         # Lancer l'analyse
@@ -37,10 +37,10 @@ def main():
         
         print("\n🎉 ANALYSE TERMINÉE AVEC SUCCÈS!")
         print("\n📊 Résultats disponibles dans:")
-        print("   • analyse_data_2024_2025/analyse_heures_disponibles_par_annee.xlsx")
-        print("   • analyse_data_2024_2025/analyse_saisonnalite_2023_2024.xlsx")
-        print("   • analyse_data_2024_2025/analyse_heures_disponibles_XXXX.png")
-        print("   • analyse_data_2024_2025/analyse_saisonnalite_XXXX.png")
+        print("   • analyse_data_2020_2025/analyse_heures_disponibles_par_annee.xlsx")
+        print("   • analyse_data_2020_2025/analyse_saisonnalite_2023_2024.xlsx")
+        print("   • analyse_data_2020_2025/analyse_heures_disponibles_XXXX.png")
+        print("   • analyse_data_2020_2025/analyse_saisonnalite_XXXX.png")
         
     except Exception as e:
         print(f"❌ Erreur lors de l'analyse: {e}")
