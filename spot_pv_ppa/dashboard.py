@@ -265,29 +265,29 @@ if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
                     
                     df_plot_data = pd.DataFrame({
                         'Maximum Consumption (MWh)': pd.Series(max_monthly_consumption),
-                        'PV-covered (MWh)': pd.Series(pv_energy_mwh),
-                        'Spot Target (MWh)': pd.Series(monthly_available_power)
+                        'PV-covered': pd.Series(pv_energy_mwh),
+                        'Spot Target': pd.Series(monthly_available_power)
                     })
                     
-                    df_plot_data['PPA (MWh)'] = (
+                    df_plot_data['PPA'] = (
                         df_plot_data['Maximum Consumption (MWh)'] - 
-                        df_plot_data['PV-covered (MWh)'] - 
-                        df_plot_data['Spot Target (MWh)']
+                        df_plot_data['PV-covered'] - 
+                        df_plot_data['Spot Target']
                     ).clip(lower=0)
                     
                     month_order = list(calendar.month_name)[1:]
                     df_plot_data = df_plot_data.reindex(month_order)
                     
                     fig2, ax3 = plt.subplots(figsize=(12, 6))
-                    df_plot_data[['PV-covered (MWh)', 'Spot Target (MWh)', 'PPA (MWh)']].plot(
+                    df_plot_data[['PV-covered', 'Spot Target', 'PPA']].plot(
                         kind='bar', stacked=True, ax=ax3, color=['blue', 'green', 'red']
                     )
                     
                     # Add percentage labels inside bars with white text
                     for i, month in enumerate(df_plot_data.index):
-                        pv_val = df_plot_data.loc[month, 'PV-covered (MWh)']
-                        spot_val = df_plot_data.loc[month, 'Spot Target (MWh)']
-                        ppa_val = df_plot_data.loc[month, 'PPA (MWh)']
+                        pv_val = df_plot_data.loc[month, 'PV-covered']
+                        spot_val = df_plot_data.loc[month, 'Spot Target']
+                        ppa_val = df_plot_data.loc[month, 'PPA']
                         
                         # Use the sum of plotted segments as total (this is what's actually displayed in the chart)
                         total_plotted = pv_val + spot_val + ppa_val
