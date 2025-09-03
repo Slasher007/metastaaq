@@ -371,6 +371,46 @@ if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
                     st.metric(f"**LCOE (Levelized Cost of Energy) for {target_price}€/MWh spot price:**", 
                              f"{lcoe:.2f} €/MWh")
                     
+                    # Create detailed monthly breakdown table
+                    st.write("**📊 Monthly Energy Breakdown:**")
+                    
+                    monthly_breakdown = []
+                    for month in df_plot_data.index:
+                        pv_energy = df_plot_data.loc[month, 'PV']
+                        spot_energy = df_plot_data.loc[month, 'Spot']
+                        ppa_energy = df_plot_data.loc[month, 'PPA']
+                        total_energy = pv_energy + spot_energy + ppa_energy
+                        
+                        # Calculate coverage ratios
+                        pv_ratio = (pv_energy / total_energy * 100) if total_energy > 0 else 0
+                        spot_ratio = (spot_energy / total_energy * 100) if total_energy > 0 else 0
+                        ppa_ratio = (ppa_energy / total_energy * 100) if total_energy > 0 else 0
+                        
+                        # Calculate costs
+                        pv_cost = pv_energy * pv_price
+                        spot_cost = spot_energy * target_price
+                        ppa_cost = ppa_energy * ppa_price
+                        total_cost = pv_cost + spot_cost + ppa_cost
+                        
+                        monthly_breakdown.append({
+                            'Month': month,
+                            'PV Energy (MWh)': f"{pv_energy:.1f}",
+                            'PV Coverage (%)': f"{pv_ratio:.1f}%",
+                            'PV Cost (€)': f"{pv_cost:,.0f}",
+                            'Spot Energy (MWh)': f"{spot_energy:.1f}",
+                            'Spot Coverage (%)': f"{spot_ratio:.1f}%",
+                            'Spot Cost (€)': f"{spot_cost:,.0f}",
+                            'PPA Energy (MWh)': f"{ppa_energy:.1f}",
+                            'PPA Coverage (%)': f"{ppa_ratio:.1f}%",
+                            'PPA Cost (€)': f"{ppa_cost:,.0f}",
+                            'Total Energy (MWh)': f"{total_energy:.1f}",
+                            'Total Cost (€)': f"{total_cost:,.0f}",
+                            'Avg Cost (€/MWh)': f"{total_cost/total_energy:.2f}" if total_energy > 0 else "0.00"
+                        })
+                    
+                    breakdown_df = pd.DataFrame(monthly_breakdown)
+                    st.dataframe(breakdown_df, use_container_width=True)
+                    
                     # Store results
                     all_results.append({
                         'target_price': target_price,
