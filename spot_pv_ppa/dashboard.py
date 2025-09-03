@@ -163,199 +163,186 @@ st.sidebar.metric("CH₄ Flow Rate", f"{ch4_flowrate} Nm³/h")
 st.sidebar.metric("CH₄ Production", f"{ch4_kg_per_day:.1f} kg/day")
 
 # Main content area
-col1, col2 = st.columns([2, 1])
-
-with col1:
-    st.markdown('<p class="section-header">📈 Simulation Results</p>', unsafe_allow_html=True)
-    
-    if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
-        if data_content.empty:
-            st.error("❌ No data available. Please upload a valid CSV file.")
-        else:
-            # Create placeholder for results
-            results_placeholder = st.empty()
-            
-            with st.spinner("Running simulation..."):
-                try:
-                    # Run custom simulation with Streamlit-compatible plotting
-                    all_results = []
+if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
+    if data_content.empty:
+        st.error("❌ No data available. Please upload a valid CSV file.")
+    else:
+        # Create placeholder for results
+        results_placeholder = st.empty()
+        
+        with st.spinner("Running simulation..."):
+            try:
+                # Run custom simulation with Streamlit-compatible plotting
+                all_results = []
+                
+                for i, target_price in enumerate(target_prices):
+                    st.write(f"**Analyzing target price: {target_price} €/MWh**")
                     
-                    for i, target_price in enumerate(target_prices):
-                        st.write(f"**Analyzing target price: {target_price} €/MWh**")
-                        
-                        # Run simulation components
-                        expected_monthly_hours = get_required_hours_per_month(service_ratio)
-                        expected_monthly_power = get_expected_monthly_power_cons(electrolyser_power, expected_monthly_hours)
-                        result = calculate_max_hours(data_content, target_price)
-                        df_result = display_table(result)
-                        
-                        # Calculate differences
-                        df_hour_diff = calculate_percentage_difference(df_result, expected_monthly_hours)
-                        df_power_consumption = df_result * electrolyser_power
-                        df_power_diff = calculate_percentage_difference(df_power_consumption, expected_monthly_power)
-                        
-                        # Display results table
-                        st.write("**📊 Available Hours per Month:**")
-                        st.dataframe(df_result, use_container_width=True)
-                        
-                        # Create and display charts
-                        col_chart1, col_chart2 = st.columns(2)
-                        
-                        with col_chart1:
-                            # Chart 1: Available Hours
-                            fig1, ax1 = plt.subplots(figsize=(10, 6))
-                            df_plot = df_result.T
-                            monthly_avg = df_plot.mean(axis=1)
-                            
-                            df_plot.plot(kind='bar', ax=ax1, legend=True)
-                            ax1.plot(monthly_avg.index, monthly_avg.values, 
-                                   color='black', linestyle='--', marker='o', label='Monthly Average')
-                            
-                            ax1.set_xlabel('Month')
-                            ax1.set_ylabel('Available Hours')
-                            ax1.set_title(f'Available Hours - {target_price}€/MWh')
-                            ax1.tick_params(axis='x', rotation=45)
-                            ax1.legend(loc='upper left')
-                            
-                            # Add second y-axis for power consumption
-                            ax2 = ax1.twinx()
-                            max_power_consumption = electrolyser_power * 24
-                            ax2.set_ylabel('Power Consumption (MWh/day)', color='blue')
-                            ax2.set_ylim(0, max_power_consumption)
-                            ax2.tick_params(axis='y', labelcolor='blue')
-                            
-                            plt.tight_layout()
-                            st.pyplot(fig1)
-                        
-                        with col_chart2:
-                            # Chart 2: Energy Coverage
-                            pv_energy_kwh = {
-                                "January": 41329.5, "February": 62809.8, "March": 100499.8,
-                                "April": 128700.4, "May": 132130.6, "June": 133177.3,
-                                "July": 136106.0, "August": 127150.4, "September": 112236.2,
-                                "October": 79940.3, "November": 48793.6, "December": 40402.6
-                            }
-                            pv_energy_mwh = {month: kwh / 1000 for month, kwh in pv_energy_kwh.items()}
-                            
-                            days_in_month = {
-                                "January": 31, "February": 28, "March": 31, "April": 30,
-                                "May": 31, "June": 30, "July": 31, "August": 31,
-                                "September": 30, "October": 31, "November": 30, "December": 31
-                            }
-                            
-                            monthly_available_power = df_power_consumption.mean().to_dict()
-                            max_monthly_consumption = {
-                                month: electrolyser_power * 24 * service_ratio * days_in_month[month]
-                                for month in days_in_month
-                            }
-                            
-                            df_plot_data = pd.DataFrame({
-                                'Maximum Consumption (MWh)': pd.Series(max_monthly_consumption),
-                                'PV-covered (MWh)': pd.Series(pv_energy_mwh),
-                                'Spot Target (MWh)': pd.Series(monthly_available_power)
-                            })
-                            
-                            df_plot_data['Remaining Unmet Demand (MWh)'] = (
-                                df_plot_data['Maximum Consumption (MWh)'] - 
-                                df_plot_data['PV-covered (MWh)'] - 
-                                df_plot_data['Spot Target (MWh)']
-                            ).clip(lower=0)
-                            
-                            month_order = list(calendar.month_name)[1:]
-                            df_plot_data = df_plot_data.reindex(month_order)
-                            
-                            fig2, ax3 = plt.subplots(figsize=(10, 6))
-                            df_plot_data[['PV-covered (MWh)', 'Spot Target (MWh)', 'Remaining Unmet Demand (MWh)']].plot(
-                                kind='bar', stacked=True, ax=ax3, color=['blue', 'green', 'red']
-                            )
-                            
-                            ax3.set_title(f'Monthly Energy Coverage - {target_price}€/MWh')
-                            ax3.set_xlabel('Month')
-                            ax3.set_ylabel('Energy (MWh)')
-                            ax3.tick_params(axis='x', rotation=45)
-                            
-                            plt.tight_layout()
-                            st.pyplot(fig2)
-                        
-                        # Store results
-                        all_results.append({
-                            'target_price': target_price,
-                            'df_result': df_result,
-                            'df_power_consumption': df_power_consumption,
-                            'monthly_avg_hours': df_result.mean().mean(),
-                            'monthly_avg_power': df_power_consumption.mean().mean()
-                        })
-                        
-                        st.success(f"✅ Completed analysis for {target_price} €/MWh")
-                        
-                        if i < len(target_prices) - 1:
-                            st.markdown("---")
+                    # Run simulation components
+                    expected_monthly_hours = get_required_hours_per_month(service_ratio)
+                    expected_monthly_power = get_expected_monthly_power_cons(electrolyser_power, expected_monthly_hours)
+                    result = calculate_max_hours(data_content, target_price)
+                    df_result = display_table(result)
                     
-                    st.success(f"🎉 Simulation completed for {len(target_prices)} price point(s)!")
+                    # Calculate differences
+                    df_hour_diff = calculate_percentage_difference(df_result, expected_monthly_hours)
+                    df_power_consumption = df_result * electrolyser_power
+                    df_power_diff = calculate_percentage_difference(df_power_consumption, expected_monthly_power)
                     
-                    # Add comparison summary if multiple prices
-                    if len(all_results) > 1:
+                    # Display results table
+                    st.write("**📊 Available Hours per Month:**")
+                    st.dataframe(df_result, use_container_width=True)
+                    
+                    # Create and display charts using full width
+                    st.write("**📈 Available Hours Chart:**")
+                    
+                    # Chart 1: Available Hours (Full Width)
+                    fig1, ax1 = plt.subplots(figsize=(12, 6))
+                    df_plot = df_result.T
+                    monthly_avg = df_plot.mean(axis=1)
+                    
+                    df_plot.plot(kind='bar', ax=ax1, legend=True)
+                    ax1.plot(monthly_avg.index, monthly_avg.values, 
+                           color='black', linestyle='--', marker='o', label='Monthly Average')
+                    
+                    ax1.set_xlabel('Month')
+                    ax1.set_ylabel('Available Hours')
+                    ax1.set_title(f'Available Hours - {target_price}€/MWh')
+                    ax1.tick_params(axis='x', rotation=45)
+                    ax1.legend(loc='upper left')
+                    
+                    # Add second y-axis for power consumption
+                    ax2 = ax1.twinx()
+                    max_power_consumption = electrolyser_power * 24
+                    ax2.set_ylabel('Power Consumption (MWh/day)', color='blue')
+                    ax2.set_ylim(0, max_power_consumption)
+                    ax2.tick_params(axis='y', labelcolor='blue')
+                    
+                    plt.tight_layout()
+                    st.pyplot(fig1)
+                    
+                    st.write("**🔋 Monthly Energy Coverage:**")
+                    
+                    # Chart 2: Energy Coverage (Full Width)
+                    pv_energy_kwh = {
+                        "January": 41329.5, "February": 62809.8, "March": 100499.8,
+                        "April": 128700.4, "May": 132130.6, "June": 133177.3,
+                        "July": 136106.0, "August": 127150.4, "September": 112236.2,
+                        "October": 79940.3, "November": 48793.6, "December": 40402.6
+                    }
+                    pv_energy_mwh = {month: kwh / 1000 for month, kwh in pv_energy_kwh.items()}
+                    
+                    days_in_month = {
+                        "January": 31, "February": 28, "March": 31, "April": 30,
+                        "May": 31, "June": 30, "July": 31, "August": 31,
+                        "September": 30, "October": 31, "November": 30, "December": 31
+                    }
+                    
+                    monthly_available_power = df_power_consumption.mean().to_dict()
+                    max_monthly_consumption = {
+                        month: electrolyser_power * 24 * service_ratio * days_in_month[month]
+                        for month in days_in_month
+                    }
+                    
+                    df_plot_data = pd.DataFrame({
+                        'Maximum Consumption (MWh)': pd.Series(max_monthly_consumption),
+                        'PV-covered (MWh)': pd.Series(pv_energy_mwh),
+                        'Spot Target (MWh)': pd.Series(monthly_available_power)
+                    })
+                    
+                    df_plot_data['Remaining Unmet Demand (MWh)'] = (
+                        df_plot_data['Maximum Consumption (MWh)'] - 
+                        df_plot_data['PV-covered (MWh)'] - 
+                        df_plot_data['Spot Target (MWh)']
+                    ).clip(lower=0)
+                    
+                    month_order = list(calendar.month_name)[1:]
+                    df_plot_data = df_plot_data.reindex(month_order)
+                    
+                    fig2, ax3 = plt.subplots(figsize=(12, 6))
+                    df_plot_data[['PV-covered (MWh)', 'Spot Target (MWh)', 'Remaining Unmet Demand (MWh)']].plot(
+                        kind='bar', stacked=True, ax=ax3, color=['blue', 'green', 'red']
+                    )
+                    
+                    ax3.set_title(f'Monthly Energy Coverage - {target_price}€/MWh')
+                    ax3.set_xlabel('Month')
+                    ax3.set_ylabel('Energy (MWh)')
+                    ax3.tick_params(axis='x', rotation=45)
+                    
+                    plt.tight_layout()
+                    st.pyplot(fig2)
+                    
+                    # Store results
+                    all_results.append({
+                        'target_price': target_price,
+                        'df_result': df_result,
+                        'df_power_consumption': df_power_consumption,
+                        'monthly_avg_hours': df_result.mean().mean(),
+                        'monthly_avg_power': df_power_consumption.mean().mean()
+                    })
+                    
+                    st.success(f"✅ Completed analysis for {target_price} €/MWh")
+                    
+                    if i < len(target_prices) - 1:
                         st.markdown("---")
-                        st.markdown("### 📈 Price Comparison Summary")
-                        
-                        comparison_data = []
-                        for result in all_results:
-                            comparison_data.append({
-                                'Target Price (€/MWh)': result['target_price'],
-                                'Avg Monthly Hours': f"{result['monthly_avg_hours']:.1f}",
-                                'Avg Monthly Power (MWh)': f"{result['monthly_avg_power']:.1f}"
-                            })
-                        
-                        comparison_df = pd.DataFrame(comparison_data)
-                        st.dataframe(comparison_df, use_container_width=True)
-                        
-                        # Price comparison chart
-                        fig_comp, (ax_comp1, ax_comp2) = plt.subplots(1, 2, figsize=(12, 5))
-                        
-                        prices = [r['target_price'] for r in all_results]
-                        hours = [r['monthly_avg_hours'] for r in all_results]
-                        power = [r['monthly_avg_power'] for r in all_results]
-                        
-                        ax_comp1.plot(prices, hours, 'o-', color='blue', linewidth=2, markersize=8)
-                        ax_comp1.set_xlabel('Target Price (€/MWh)')
-                        ax_comp1.set_ylabel('Average Monthly Hours')
-                        ax_comp1.set_title('Hours vs Price')
-                        ax_comp1.grid(True, alpha=0.3)
-                        
-                        ax_comp2.plot(prices, power, 'o-', color='green', linewidth=2, markersize=8)
-                        ax_comp2.set_xlabel('Target Price (€/MWh)')
-                        ax_comp2.set_ylabel('Average Monthly Power (MWh)')
-                        ax_comp2.set_title('Power vs Price')
-                        ax_comp2.grid(True, alpha=0.3)
-                        
-                        plt.tight_layout()
-                        st.pyplot(fig_comp)
+                
+                st.success(f"🎉 Simulation completed for {len(target_prices)} price point(s)!")
+                
+                # Add comparison summary if multiple prices
+                if len(all_results) > 1:
+                    st.markdown("---")
+                    st.markdown("### 📈 Price Comparison Summary")
                     
-                except Exception as e:
-                    st.error(f"❌ Error running simulation: {str(e)}")
-                    st.exception(e)  # Show full error details for debugging
+                    comparison_data = []
+                    for result in all_results:
+                        comparison_data.append({
+                            'Target Price (€/MWh)': result['target_price'],
+                            'Avg Monthly Hours': f"{result['monthly_avg_hours']:.1f}",
+                            'Avg Monthly Power (MWh)': f"{result['monthly_avg_power']:.1f}"
+                        })
+                    
+                    comparison_df = pd.DataFrame(comparison_data)
+                    st.dataframe(comparison_df, use_container_width=True)
+                    
+                    # Price comparison chart
+                    fig_comp, (ax_comp1, ax_comp2) = plt.subplots(1, 2, figsize=(12, 5))
+                    
+                    prices = [r['target_price'] for r in all_results]
+                    hours = [r['monthly_avg_hours'] for r in all_results]
+                    power = [r['monthly_avg_power'] for r in all_results]
+                    
+                    ax_comp1.plot(prices, hours, 'o-', color='blue', linewidth=2, markersize=8)
+                    ax_comp1.set_xlabel('Target Price (€/MWh)')
+                    ax_comp1.set_ylabel('Average Monthly Hours')
+                    ax_comp1.set_title('Hours vs Price')
+                    ax_comp1.grid(True, alpha=0.3)
+                    
+                    ax_comp2.plot(prices, power, 'o-', color='green', linewidth=2, markersize=8)
+                    ax_comp2.set_xlabel('Target Price (€/MWh)')
+                    ax_comp2.set_ylabel('Average Monthly Power (MWh)')
+                    ax_comp2.set_title('Power vs Price')
+                    ax_comp2.grid(True, alpha=0.3)
+                    
+                    plt.tight_layout()
+                    st.pyplot(fig_comp)
+                
+            except Exception as e:
+                st.error(f"❌ Error running simulation: {str(e)}")
+                st.exception(e)  # Show full error details for debugging
 
-with col2:
-    st.markdown('<p class="section-header">📋 Summary</p>', unsafe_allow_html=True)
-    
-    # Display key parameters in metric cards
-    st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+# Compact Summary Section
+st.markdown("---")
+st.markdown("### 📋 Quick Summary")
+
+col_sum1, col_sum2, col_sum3, col_sum4 = st.columns(4)
+with col_sum1:
     st.metric("Selected Years", f"{len(selected_years)} years")
+with col_sum2:
     st.metric("Data Points", f"{len(data_content):,}" if not data_content.empty else "0")
+with col_sum3:
     st.metric("Electrolyzer Power", f"{electrolyser_power} MW")
+with col_sum4:
     st.metric("Target Prices", f"{len(target_prices)} price(s)")
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Show target prices
-    if len(target_prices) > 1:
-        st.markdown("**Target Prices (€/MWh):**")
-        for price in target_prices:
-            st.write(f"• {price}")
-    
-    # Data preview
-    if not data_content.empty:
-        st.markdown("**Data Preview:**")
-        st.dataframe(data_content.head(5), use_container_width=True)
 
 # Footer
 st.markdown("---")
