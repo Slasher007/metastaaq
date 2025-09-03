@@ -266,32 +266,34 @@ if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
                     
                     # Add percentage labels inside bars with white text
                     for i, month in enumerate(df_plot_data.index):
-                        total = df_plot_data.loc[month, 'Maximum Consumption (MWh)']
-                        if total > 0:
-                            pv_val = df_plot_data.loc[month, 'PV-covered (MWh)']
-                            spot_val = df_plot_data.loc[month, 'Spot Target (MWh)']
-                            remaining_val = df_plot_data.loc[month, 'Remaining Unmet Demand (MWh)']
-                            
-                            # Calculate percentages
-                            pv_pct = (pv_val / total) * 100
-                            spot_pct = (spot_val / total) * 100
-                            remaining_pct = (remaining_val / total) * 100
+                        pv_val = df_plot_data.loc[month, 'PV-covered (MWh)']
+                        spot_val = df_plot_data.loc[month, 'Spot Target (MWh)']
+                        remaining_val = df_plot_data.loc[month, 'Remaining Unmet Demand (MWh)']
+                        
+                        # Use the sum of plotted segments as total (this is what's actually displayed in the chart)
+                        total_plotted = pv_val + spot_val + remaining_val
+                        
+                        if total_plotted > 0:
+                            # Calculate percentages based on plotted total
+                            pv_pct = (pv_val / total_plotted) * 100
+                            spot_pct = (spot_val / total_plotted) * 100
+                            remaining_pct = (remaining_val / total_plotted) * 100
                             
                             # Position for text (middle of each bar segment)
                             pv_mid = pv_val / 2
                             spot_mid = pv_val + (spot_val / 2)
                             remaining_mid = pv_val + spot_val + (remaining_val / 2)
                             
-                            # Add percentage text if segment is large enough to be visible
-                            if pv_pct > 5:  # Only show if percentage > 5%
+                            # Add percentage text if segment is large enough to be visible (reduced threshold)
+                            if pv_pct > 3:  # Show if percentage > 3%
                                 ax3.text(i, pv_mid, f'{pv_pct:.1f}%', 
                                         ha='center', va='center', color='white', fontweight='bold', fontsize=9)
                             
-                            if spot_pct > 5:
+                            if spot_pct > 3:
                                 ax3.text(i, spot_mid, f'{spot_pct:.1f}%', 
                                         ha='center', va='center', color='white', fontweight='bold', fontsize=9)
                             
-                            if remaining_pct > 5:
+                            if remaining_pct > 3:
                                 ax3.text(i, remaining_mid, f'{remaining_pct:.1f}%', 
                                         ha='center', va='center', color='white', fontweight='bold', fontsize=9)
                     
