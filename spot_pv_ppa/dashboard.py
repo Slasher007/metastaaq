@@ -202,8 +202,27 @@ if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
                     monthly_avg = df_plot.mean(axis=1)
                     
                     df_plot.plot(kind='bar', ax=ax1, legend=True)
-                    ax1.plot(monthly_avg.index, monthly_avg.values, 
-                           color='black', linestyle='--', marker='o', label='Monthly Average')
+                    
+                    # Plot mean values as prominent points with labels
+                    ax1.plot(range(len(monthly_avg)), monthly_avg.values, 
+                           color='red', linestyle='--', marker='o', markersize=8, 
+                           linewidth=2, label='Monthly Average', markerfacecolor='red', 
+                           markeredgecolor='white', markeredgewidth=2)
+                    
+                    # Add value labels on the mean points
+                    for i, (month, value) in enumerate(monthly_avg.items()):
+                        ax1.annotate(f'{value:.0f}h', 
+                                   (i, value), 
+                                   textcoords="offset points", 
+                                   xytext=(0, 10), 
+                                   ha='center', 
+                                   fontsize=9, 
+                                   fontweight='bold',
+                                   color='red',
+                                   bbox=dict(boxstyle='round,pad=0.3', 
+                                           facecolor='white', 
+                                           edgecolor='red', 
+                                           alpha=0.8))
                     
                     ax1.set_xlabel('Month')
                     ax1.set_ylabel('Available Hours')
