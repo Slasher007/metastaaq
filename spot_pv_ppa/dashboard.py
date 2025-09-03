@@ -299,10 +299,9 @@ st.sidebar.metric("Yearly CH₄ Production", f"{total_yearly_ch4_tonnes:,.0f} To
 # Add expandable section for monthly details
 with st.sidebar.expander("📅 Monthly Details"):
     for month, production in monthly_ch4_production.items():
-        days_in_month = 31 if month in ["January", "March", "May", "July", "August", "October", "December"] else 30 if month != "February" else 28
-        daily_production = production / days_in_month
+        monthly_production_tonnes = production / 1000
         service_pct = monthly_service_ratios[month] * 100
-        st.write(f"**{month[:3]}**: {daily_production:.1f} kg/day ({service_pct:.0f}%)")
+        st.write(f"**{month[:3]}**: {monthly_production_tonnes:.1f} Tonnes ({service_pct:.0f}%)")
 
 # Add parameter change detection using session state
 if 'last_params' not in st.session_state:
