@@ -8,8 +8,6 @@ import calendar
 from mpl_toolkits.mplot3d import Axes3D
 
 # Import individual functions to have better control over plotting
-from get_required_hours_per_month import get_required_hours_per_month
-from get_expected_monthly_power_cons import get_expected_monthly_power_cons
 from calculate_max_hours import calculate_max_hours
 from display_table import display_table
 from calculate_percentage_difference import calculate_percentage_difference
@@ -95,14 +93,68 @@ electrolyser_specific_consumption = st.sidebar.slider(
     help="Energy consumption per cubic meter of hydrogen produced"
 )
 
-service_ratio = st.sidebar.slider(
-    "Service Ratio",
-    min_value=0.8,
-    max_value=1.0,
-    value=0.98,
-    step=0.01,
-    help="Electrolyzer availability ratio (0-1)"
-)
+# Monthly Service Ratios
+st.sidebar.markdown("#### 📅 Monthly Service Ratios")
+st.sidebar.markdown("*Set individual availability ratios for each month (0.0 = off, 1.0 = always on)*")
+
+# Create two columns for better layout
+col1, col2 = st.sidebar.columns(2)
+
+# Create monthly service ratio sliders
+monthly_service_ratios = {}
+months = ["January", "February", "March", "April", "May", "June", 
+          "July", "August", "September", "October", "November", "December"]
+
+# First 6 months in left column
+with col1:
+    for month in months[:6]:
+        monthly_service_ratios[month] = st.slider(
+            f"{month[:3]}",  # Short month name
+            min_value=0.0,
+            max_value=1.0,
+            value=0.98,
+            step=0.01,
+            key=f"service_{month}",
+            help=f"Service ratio for {month}"
+        )
+
+# Last 6 months in right column  
+with col2:
+    for month in months[6:]:
+        monthly_service_ratios[month] = st.slider(
+            f"{month[:3]}",  # Short month name
+            min_value=0.0,
+            max_value=1.0,
+            value=0.98,
+            step=0.01,
+            key=f"service_{month}",
+            help=f"Service ratio for {month}"
+        )
+
+# Add quick preset buttons for common scenarios
+st.sidebar.markdown("**Quick Presets:**")
+preset_col1, preset_col2, preset_col3 = st.sidebar.columns(3)
+
+with preset_col1:
+    if st.button("All Max", help="Set all months to 1.0"):
+        for month in months:
+            st.session_state[f"service_{month}"] = 1.0
+        st.rerun()
+
+with preset_col2:
+    if st.button("All 98%", help="Set all months to 0.98"):
+        for month in months:
+            st.session_state[f"service_{month}"] = 0.98
+        st.rerun()
+
+with preset_col3:
+    if st.button("All Off", help="Set all months to 0.0"):
+        for month in months:
+            st.session_state[f"service_{month}"] = 0.0
+        st.rerun()
+
+# Calculate average service ratio for display purposes
+avg_service_ratio = sum(monthly_service_ratios.values()) / len(monthly_service_ratios)
 
 # Price parameters
 st.sidebar.markdown("#### 💰 Price Parameters")
@@ -156,12 +208,58 @@ ppa_price = st.sidebar.slider(
     help="Power Purchase Agreement price"
 )
 
+# Create function to calculate monthly required hours with individual service ratios
+def get_required_hours_per_month_custom(monthly_service_ratios: dict) -> dict:
+    """
+    Calculate required hours per month using individual monthly service ratios.
+    
+    Parameters:
+        monthly_service_ratios (dict): Service ratio for each month
+        
+    Returns:
+        dict: Required hours for each month
+    """
+    days_per_month = {
+        "January": 31, "February": 28, "March": 31, "April": 30,
+        "May": 31, "June": 30, "July": 31, "August": 31,
+        "September": 30, "October": 31, "November": 30, "December": 31
+    }
+    
+    return {
+        month: round(days_per_month[month] * 24 * monthly_service_ratios[month], 0)
+        for month in days_per_month.keys()
+    }
+
+# Create function to calculate monthly expected power consumption
+def get_expected_monthly_power_cons_custom(electrolyser_power: float, monthly_required_hours: dict) -> dict:
+    """
+    Calculate expected monthly power consumption using monthly required hours.
+    
+    Parameters:
+        electrolyser_power (float): Electrolyzer power in MW
+        monthly_required_hours (dict): Required hours for each month
+        
+    Returns:
+        dict: Expected power consumption for each month in MWh
+    """
+    return {
+        month: electrolyser_power * hours
+        for month, hours in monthly_required_hours.items()
+    }
+
 # Calculate derived parameters
 h2_flowrate = round((electrolyser_power * 1000) / electrolyser_specific_consumption)
 stoechio_H2_CH4 = 4
 ch4_flowrate = round(h2_flowrate / stoechio_H2_CH4)
 ch4_density = 0.7168  # kg/Nm³ CH₄
 ch4_kg_per_day = ch4_flowrate * 24 * ch4_density
+
+# Calculate monthly CH4 production based on service ratios
+monthly_ch4_production = {
+    month: ch4_flowrate * 24 * ratio * (31 if month in ["January", "March", "May", "July", "August", "October", "December"] 
+                                       else 30 if month != "February" else 28) * ch4_density
+    for month, ratio in monthly_service_ratios.items()
+}
 
 # Calculate LCOE (Levelized Cost of Energy)
 # This will be calculated dynamically based on the energy mix and prices
@@ -191,7 +289,20 @@ def calculate_lcoe(pv_energy_mwh, spot_energy_dict, ppa_energy_dict, pv_price, s
 st.sidebar.markdown("#### 📊 Calculated Parameters")
 st.sidebar.metric("H₂ Flow Rate", f"{h2_flowrate} Nm³/h")
 st.sidebar.metric("CH₄ Flow Rate", f"{ch4_flowrate} Nm³/h")
-st.sidebar.metric("CH₄ Production", f"{ch4_kg_per_day:.1f} kg/day")
+st.sidebar.metric("Avg Service Ratio", f"{avg_service_ratio:.1%}")
+
+# Show monthly CH4 production summary
+total_monthly_ch4 = sum(monthly_ch4_production.values())
+avg_daily_ch4 = total_monthly_ch4 / 365
+st.sidebar.metric("Avg CH₄ Production", f"{avg_daily_ch4:.1f} kg/day")
+
+# Add expandable section for monthly details
+with st.sidebar.expander("📅 Monthly Details"):
+    for month, production in monthly_ch4_production.items():
+        days_in_month = 31 if month in ["January", "March", "May", "July", "August", "October", "December"] else 30 if month != "February" else 28
+        daily_production = production / days_in_month
+        service_pct = monthly_service_ratios[month] * 100
+        st.write(f"**{month[:3]}**: {daily_production:.1f} kg/day ({service_pct:.0f}%)")
 
 # Add parameter change detection using session state
 if 'last_params' not in st.session_state:
@@ -202,7 +313,7 @@ current_params = {
     'years': tuple(sorted(selected_years)) if selected_years else (),
     'power': electrolyser_power,
     'consumption': electrolyser_specific_consumption,
-    'service_ratio': service_ratio,
+    'monthly_service_ratios': tuple(sorted(monthly_service_ratios.items())),
     'target_prices': tuple(target_prices),
     'pv_price': pv_price,
     'ppa_price': ppa_price
@@ -223,6 +334,36 @@ with col1:
 
 with col2:
     manual_refresh = st.button("🔄 Manual Refresh", help="Force refresh the simulation")
+
+# Add a visual summary of monthly service ratios before results
+st.markdown("#### 📅 Current Monthly Service Ratios")
+service_ratio_df = pd.DataFrame({
+    'Month': list(monthly_service_ratios.keys()),
+    'Service Ratio': [f"{ratio:.1%}" for ratio in monthly_service_ratios.values()],
+    'Service Ratio (Decimal)': list(monthly_service_ratios.values())
+})
+
+# Create a bar chart for service ratios
+fig_service, ax_service = plt.subplots(figsize=(12, 4))
+bars = ax_service.bar(range(len(monthly_service_ratios)), 
+                     list(monthly_service_ratios.values()),
+                     color=['lightgreen' if ratio >= 0.9 else 'orange' if ratio >= 0.5 else 'lightcoral' 
+                           for ratio in monthly_service_ratios.values()])
+
+# Add value labels on bars
+for i, (month, ratio) in enumerate(monthly_service_ratios.items()):
+    ax_service.text(i, ratio + 0.01, f'{ratio:.0%}', 
+                   ha='center', va='bottom', fontweight='bold', fontsize=10)
+
+ax_service.set_xticks(range(len(monthly_service_ratios)))
+ax_service.set_xticklabels([month[:3] for month in monthly_service_ratios.keys()], rotation=45)
+ax_service.set_ylabel('Service Ratio')
+ax_service.set_title('Monthly Service Ratios (Green: ≥90%, Orange: 50-90%, Red: <50%)')
+ax_service.set_ylim(0, 1.1)
+ax_service.grid(True, alpha=0.3)
+
+plt.tight_layout()
+st.pyplot(fig_service)
 
 # Auto-run simulation when parameters change or manual refresh is clicked
 run_simulation = params_changed or manual_refresh or 'simulation_run' not in st.session_state
@@ -245,9 +386,9 @@ if run_simulation:
                 for i, target_price in enumerate(target_prices):
                     st.write(f"**Analyzing target spot price: {target_price} €/MWh**")
                     
-                    # Run simulation components
-                    expected_monthly_hours = get_required_hours_per_month(service_ratio)
-                    expected_monthly_power = get_expected_monthly_power_cons(electrolyser_power, expected_monthly_hours)
+                    # Run simulation components using monthly service ratios
+                    expected_monthly_hours = get_required_hours_per_month_custom(monthly_service_ratios)
+                    expected_monthly_power = get_expected_monthly_power_cons_custom(electrolyser_power, expected_monthly_hours)
                     result = calculate_max_hours(data_content, target_price)
                     df_result = display_table(result)
                     
@@ -293,7 +434,7 @@ if run_simulation:
                     
                     ax1.set_xlabel('Month')
                     ax1.set_ylabel('Available Hours')
-                    ax1.set_title(f'Available Hours - {target_price}€/MWh')
+                    ax1.set_title(f'Available Hours - {target_price}€/MWh\n(Service ratios: {", ".join([f"{month[:3]}:{monthly_service_ratios[month]:.0%}" for month in monthly_service_ratios])})')
                     ax1.tick_params(axis='x', rotation=45)
                     ax1.legend(loc='upper left')
                     
@@ -326,7 +467,7 @@ if run_simulation:
                     
                     monthly_available_power = df_power_consumption.mean().to_dict()
                     max_monthly_consumption = {
-                        month: electrolyser_power * 24 * service_ratio * days_in_month[month]
+                        month: electrolyser_power * 24 * monthly_service_ratios[month] * days_in_month[month]
                         for month in days_in_month
                     }
                     
