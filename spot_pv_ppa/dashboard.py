@@ -137,7 +137,6 @@ else:
     target_prices = list(range(price_range[0], price_range[1] + 1, price_step))
 
 # PV and PPA Price Parameters
-st.sidebar.markdown("#### 🌞 PV Price")
 pv_price = st.sidebar.slider(
     "PV Price (€/MWh)",
     min_value=0,
@@ -147,7 +146,6 @@ pv_price = st.sidebar.slider(
     help="Price of photovoltaic energy"
 )
 
-st.sidebar.markdown("#### 📋 PPA Price")
 ppa_price = st.sidebar.slider(
     "PPA Price (€/MWh)",
     min_value=50,
