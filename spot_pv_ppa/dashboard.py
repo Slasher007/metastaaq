@@ -409,7 +409,52 @@ if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
                         })
                     
                     breakdown_df = pd.DataFrame(monthly_breakdown)
-                    st.dataframe(breakdown_df, use_container_width=True)
+                    
+                    # Calculate yearly totals and averages
+                    total_pv_energy = sum(df_plot_data['PV'])
+                    total_spot_energy = sum(df_plot_data['Spot'])
+                    total_ppa_energy = sum(df_plot_data['PPA'])
+                    total_energy_year = total_pv_energy + total_spot_energy + total_ppa_energy
+                    
+                    total_pv_cost = total_pv_energy * pv_price
+                    total_spot_cost = total_spot_energy * target_price
+                    total_ppa_cost = total_ppa_energy * ppa_price
+                    total_cost_year = total_pv_cost + total_spot_cost + total_ppa_cost
+                    
+                    # Calculate yearly averages for percentages
+                    avg_pv_ratio = (total_pv_energy / total_energy_year * 100) if total_energy_year > 0 else 0
+                    avg_spot_ratio = (total_spot_energy / total_energy_year * 100) if total_energy_year > 0 else 0
+                    avg_ppa_ratio = (total_ppa_energy / total_energy_year * 100) if total_energy_year > 0 else 0
+                    
+                    # Add yearly average row
+                    yearly_average = {
+                        'Month': '📊 YEARLY TOTAL',
+                        'PV Energy (MWh)': f"{total_pv_energy:.1f}",
+                        'PV Coverage (%)': f"{avg_pv_ratio:.1f}%",
+                        'PV Cost (€)': f"{total_pv_cost:,.0f}",
+                        'Spot Energy (MWh)': f"{total_spot_energy:.1f}",
+                        'Spot Coverage (%)': f"{avg_spot_ratio:.1f}%",
+                        'Spot Cost (€)': f"{total_spot_cost:,.0f}",
+                        'PPA Energy (MWh)': f"{total_ppa_energy:.1f}",
+                        'PPA Coverage (%)': f"{avg_ppa_ratio:.1f}%",
+                        'PPA Cost (€)': f"{total_ppa_cost:,.0f}",
+                        'Total Energy (MWh)': f"{total_energy_year:.1f}",
+                        'Total Cost (€)': f"{total_cost_year:,.0f}",
+                        'Avg Cost (€/MWh)': f"{total_cost_year/total_energy_year:.2f}" if total_energy_year > 0 else "0.00"
+                    }
+                    
+                    # Add the yearly row to the dataframe
+                    breakdown_df = pd.concat([breakdown_df, pd.DataFrame([yearly_average])], ignore_index=True)
+                    
+                    # Style the dataframe to highlight the yearly total row
+                    def highlight_yearly_row(row):
+                        if row.name == len(breakdown_df) - 1:  # Last row (yearly total)
+                            return ['background-color: #e6f3ff; font-weight: bold'] * len(row)
+                        return [''] * len(row)
+                    
+                    styled_df = breakdown_df.style.apply(highlight_yearly_row, axis=1)
+                    
+                    st.dataframe(styled_df, use_container_width=True)
                     
                     # Store results
                     all_results.append({
