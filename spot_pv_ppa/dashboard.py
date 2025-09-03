@@ -264,6 +264,37 @@ if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
                         kind='bar', stacked=True, ax=ax3, color=['blue', 'green', 'red']
                     )
                     
+                    # Add percentage labels inside bars with white text
+                    for i, month in enumerate(df_plot_data.index):
+                        total = df_plot_data.loc[month, 'Maximum Consumption (MWh)']
+                        if total > 0:
+                            pv_val = df_plot_data.loc[month, 'PV-covered (MWh)']
+                            spot_val = df_plot_data.loc[month, 'Spot Target (MWh)']
+                            remaining_val = df_plot_data.loc[month, 'Remaining Unmet Demand (MWh)']
+                            
+                            # Calculate percentages
+                            pv_pct = (pv_val / total) * 100
+                            spot_pct = (spot_val / total) * 100
+                            remaining_pct = (remaining_val / total) * 100
+                            
+                            # Position for text (middle of each bar segment)
+                            pv_mid = pv_val / 2
+                            spot_mid = pv_val + (spot_val / 2)
+                            remaining_mid = pv_val + spot_val + (remaining_val / 2)
+                            
+                            # Add percentage text if segment is large enough to be visible
+                            if pv_pct > 5:  # Only show if percentage > 5%
+                                ax3.text(i, pv_mid, f'{pv_pct:.1f}%', 
+                                        ha='center', va='center', color='white', fontweight='bold', fontsize=9)
+                            
+                            if spot_pct > 5:
+                                ax3.text(i, spot_mid, f'{spot_pct:.1f}%', 
+                                        ha='center', va='center', color='white', fontweight='bold', fontsize=9)
+                            
+                            if remaining_pct > 5:
+                                ax3.text(i, remaining_mid, f'{remaining_pct:.1f}%', 
+                                        ha='center', va='center', color='white', fontweight='bold', fontsize=9)
+                    
                     ax3.set_title(f'Monthly Energy Coverage - {target_price}€/MWh')
                     ax3.set_xlabel('Month')
                     ax3.set_ylabel('Energy (MWh)')
