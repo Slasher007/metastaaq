@@ -269,7 +269,7 @@ if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
                         'Spot Target (MWh)': pd.Series(monthly_available_power)
                     })
                     
-                    df_plot_data['Remaining Unmet Demand (MWh)'] = (
+                    df_plot_data['PPA (MWh)'] = (
                         df_plot_data['Maximum Consumption (MWh)'] - 
                         df_plot_data['PV-covered (MWh)'] - 
                         df_plot_data['Spot Target (MWh)']
@@ -279,7 +279,7 @@ if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
                     df_plot_data = df_plot_data.reindex(month_order)
                     
                     fig2, ax3 = plt.subplots(figsize=(12, 6))
-                    df_plot_data[['PV-covered (MWh)', 'Spot Target (MWh)', 'Remaining Unmet Demand (MWh)']].plot(
+                    df_plot_data[['PV-covered (MWh)', 'Spot Target (MWh)', 'PPA (MWh)']].plot(
                         kind='bar', stacked=True, ax=ax3, color=['blue', 'green', 'red']
                     )
                     
@@ -287,21 +287,21 @@ if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
                     for i, month in enumerate(df_plot_data.index):
                         pv_val = df_plot_data.loc[month, 'PV-covered (MWh)']
                         spot_val = df_plot_data.loc[month, 'Spot Target (MWh)']
-                        remaining_val = df_plot_data.loc[month, 'Remaining Unmet Demand (MWh)']
+                        ppa_val = df_plot_data.loc[month, 'PPA (MWh)']
                         
                         # Use the sum of plotted segments as total (this is what's actually displayed in the chart)
-                        total_plotted = pv_val + spot_val + remaining_val
+                        total_plotted = pv_val + spot_val + ppa_val
                         
                         if total_plotted > 0:
                             # Calculate percentages based on plotted total
                             pv_pct = (pv_val / total_plotted) * 100
                             spot_pct = (spot_val / total_plotted) * 100
-                            remaining_pct = (remaining_val / total_plotted) * 100
+                            ppa_pct = (ppa_val / total_plotted) * 100
                             
                             # Position for text (middle of each bar segment)
                             pv_mid = pv_val / 2
                             spot_mid = pv_val + (spot_val / 2)
-                            remaining_mid = pv_val + spot_val + (remaining_val / 2)
+                            ppa_mid = pv_val + spot_val + (ppa_val / 2)
                             
                             # Add percentage text if segment is large enough to be visible (reduced threshold)
                             if pv_pct > 3:  # Show if percentage > 3%
@@ -312,8 +312,8 @@ if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
                                 ax3.text(i, spot_mid, f'{spot_pct:.1f}%', 
                                         ha='center', va='center', color='white', fontweight='bold', fontsize=9)
                             
-                            if remaining_pct > 3:
-                                ax3.text(i, remaining_mid, f'{remaining_pct:.1f}%', 
+                            if ppa_pct > 3:
+                                ax3.text(i, ppa_mid, f'{ppa_pct:.1f}%', 
                                         ha='center', va='center', color='white', fontweight='bold', fontsize=9)
                     
                     ax3.set_title(f'Monthly Energy Coverage - {target_price}€/MWh')
