@@ -192,10 +192,7 @@ st.sidebar.metric("H₂ Flow Rate", f"{h2_flowrate} Nm³/h")
 st.sidebar.metric("CH₄ Flow Rate", f"{ch4_flowrate} Nm³/h")
 st.sidebar.metric("CH₄ Production", f"{ch4_kg_per_day:.1f} kg/day")
 
-# LCOE placeholder (will be calculated after simulation)
-if 'lcoe_placeholder' not in st.session_state:
-    st.session_state.lcoe_placeholder = "Run simulation to calculate"
-st.sidebar.metric("LCOE", st.session_state.lcoe_placeholder)
+
 
 # Main content area
 if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
@@ -471,14 +468,9 @@ if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
                     if i < len(target_prices) - 1:
                         st.markdown("---")
                 
-                st.success(f"🎉 Simulation completed for {len(target_prices)} price point(s)!")
+
                 
-                # Update LCOE in sidebar (average of all target prices if multiple)
-                if len(all_results) == 1:
-                    st.session_state.lcoe_placeholder = f"{all_results[0]['lcoe']:.2f} €/MWh"
-                else:
-                    avg_lcoe = sum(r['lcoe'] for r in all_results) / len(all_results)
-                    st.session_state.lcoe_placeholder = f"{avg_lcoe:.2f} €/MWh (avg)"
+
                 
                 # Add comparison summary if multiple prices
                 if len(all_results) > 1:
@@ -523,17 +515,7 @@ if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
                 st.error(f"❌ Error running simulation: {str(e)}")
                 st.exception(e)  # Show full error details for debugging
 
-# Compact Summary Section
-st.markdown("---")
-st.markdown("### 📋 Quick Summary")
 
-col_sum1, col_sum2, col_sum3 = st.columns(3)
-with col_sum1:
-    st.metric("Selected Years", f"{len(selected_years)} years")
-with col_sum2:
-    st.metric("Electrolyzer Power", f"{electrolyser_power} MW")
-with col_sum3:
-    st.metric("Target Spot Prices", f"{len(target_prices)} price(s)")
 
 # Footer
 st.markdown("---")
