@@ -10,7 +10,7 @@ from datetime import datetime
 
 # Import des modules locaux
 try:
-    from telecharger_donnees_api import telecharger_donnees_pvgis_multi_annees, telecharger_donnees_entsoe_5_ans
+    from utils.telecharger_donnees_api import telecharger_donnees_pvgis_multi_annees, telecharger_donnees_entsoe_5_ans
     from process_prix_spot_data import main as process_prix_spot
 except ImportError as e:
     print(f"❌ Erreur d'import: {e}")
