@@ -564,156 +564,16 @@ if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
                     plt.tight_layout()
                     st.pyplot(fig_comp)
                 
-                # Add LCOE 3D Sensitivity Analysis
+                # Add comprehensive 3D analysis
                 st.markdown("---")
-                st.markdown("### 📈 LCOE 3D Sensitivity Analysis")
-                st.write("**💡 How LCOE varies with simultaneous price changes:**")
-                
-                # Create price ranges for 3D surface plot
-                pv_range = np.linspace(0, 100, 15)  # 0 to 100 €/MWh
-                ppa_range = np.linspace(50, 150, 15)  # 50 to 150 €/MWh
-                spot_price_fixed = target_prices[0]  # Keep spot price fixed for this surface
-                
-                # Use the first target price's energy data for sensitivity analysis
+                st.write("**🎯 Complete 3D Analysis: All Three Price Sources:**")
+
                 base_pv_energy = sum(df_plot_data['PV'])
                 base_spot_energy = sum(df_plot_data['Spot'])
                 base_ppa_energy = sum(df_plot_data['PPA'])
                 total_energy = base_pv_energy + base_spot_energy + base_ppa_energy
-                
+
                 if total_energy > 0:
-                    # Create meshgrid for 3D surface
-                    PV_mesh, PPA_mesh = np.meshgrid(pv_range, ppa_range)
-                    
-                    # Calculate LCOE for each combination of PV and PPA prices
-                    LCOE_mesh = np.zeros_like(PV_mesh)
-                    for i in range(len(ppa_range)):
-                        for j in range(len(pv_range)):
-                            pv_cost = base_pv_energy * PV_mesh[i, j]
-                            spot_cost = base_spot_energy * spot_price_fixed
-                            ppa_cost = base_ppa_energy * PPA_mesh[i, j]
-                            LCOE_mesh[i, j] = (pv_cost + spot_cost + ppa_cost) / total_energy
-                    
-                    # Create 3D surface plot
-                    fig_3d = plt.figure(figsize=(12, 8))
-                    ax_3d = fig_3d.add_subplot(111, projection='3d')
-                    
-                    # Create the surface plot with a color map
-                    surface = ax_3d.plot_surface(PV_mesh, PPA_mesh, LCOE_mesh, 
-                                               cmap='viridis', alpha=0.8, 
-                                               linewidth=0, antialiased=True)
-                    
-                    # Add current price point as a red dot
-                    current_lcoe = (base_pv_energy * pv_price + base_spot_energy * spot_price_fixed + base_ppa_energy * ppa_price) / total_energy
-                    ax_3d.scatter([pv_price], [ppa_price], [current_lcoe], 
-                                 color='red', s=100, label=f'Current LCOE: {current_lcoe:.2f}€/MWh')
-                    
-                    # Customize the plot
-                    ax_3d.set_xlabel('PV Price (€/MWh)', fontweight='bold', labelpad=10)
-                    ax_3d.set_ylabel('PPA Price (€/MWh)', fontweight='bold', labelpad=10)
-                    ax_3d.set_zlabel('LCOE (€/MWh)', fontweight='bold', labelpad=10)
-                    ax_3d.set_title(f'LCOE Surface: PV vs PPA Prices\n(Spot Price fixed at {spot_price_fixed}€/MWh)', 
-                                   fontweight='bold', pad=20)
-                    
-                    # Add colorbar
-                    colorbar = fig_3d.colorbar(surface, ax=ax_3d, shrink=0.8, aspect=20)
-                    colorbar.set_label('LCOE (€/MWh)', fontweight='bold')
-                    
-                    # Add legend
-                    ax_3d.legend(loc='upper left')
-                    
-                    # Improve viewing angle
-                    ax_3d.view_init(elev=25, azim=45)
-                    
-                    plt.tight_layout()
-                    st.pyplot(fig_3d)
-                    
-                    # Create second 3D plot: Spot vs PV (PPA fixed)
-                    st.write("**🔄 Alternative View: Spot vs PV Prices:**")
-                    
-                    spot_range = np.linspace(5, 50, 15)  # 5 to 50 €/MWh
-                    ppa_price_fixed = ppa_price  # Keep PPA price fixed
-                    
-                    # Create meshgrid for second surface
-                    SPOT_mesh, PV_mesh2 = np.meshgrid(spot_range, pv_range)
-                    
-                    # Calculate LCOE for each combination
-                    LCOE_mesh2 = np.zeros_like(SPOT_mesh)
-                    for i in range(len(pv_range)):
-                        for j in range(len(spot_range)):
-                            pv_cost = base_pv_energy * PV_mesh2[i, j]
-                            spot_cost = base_spot_energy * SPOT_mesh[i, j]
-                            ppa_cost = base_ppa_energy * ppa_price_fixed
-                            LCOE_mesh2[i, j] = (pv_cost + spot_cost + ppa_cost) / total_energy
-                    
-                    # Create second 3D surface plot
-                    fig_3d2 = plt.figure(figsize=(12, 8))
-                    ax_3d2 = fig_3d2.add_subplot(111, projection='3d')
-                    
-                    # Create the surface plot
-                    surface2 = ax_3d2.plot_surface(SPOT_mesh, PV_mesh2, LCOE_mesh2, 
-                                                  cmap='plasma', alpha=0.8, 
-                                                  linewidth=0, antialiased=True)
-                    
-                    # Add current price point
-                    current_lcoe2 = (base_pv_energy * pv_price + base_spot_energy * target_prices[0] + base_ppa_energy * ppa_price_fixed) / total_energy
-                    ax_3d2.scatter([target_prices[0]], [pv_price], [current_lcoe2], 
-                                  color='red', s=100, label=f'Current LCOE: {current_lcoe2:.2f}€/MWh')
-                    
-                    # Customize the second plot
-                    ax_3d2.set_xlabel('Spot Price (€/MWh)', fontweight='bold', labelpad=10)
-                    ax_3d2.set_ylabel('PV Price (€/MWh)', fontweight='bold', labelpad=10)
-                    ax_3d2.set_zlabel('LCOE (€/MWh)', fontweight='bold', labelpad=10)
-                    ax_3d2.set_title(f'LCOE Surface: Spot vs PV Prices\n(PPA Price fixed at {ppa_price_fixed}€/MWh)', 
-                                    fontweight='bold', pad=20)
-                    
-                    # Add colorbar
-                    colorbar2 = fig_3d2.colorbar(surface2, ax=ax_3d2, shrink=0.8, aspect=20)
-                    colorbar2.set_label('LCOE (€/MWh)', fontweight='bold')
-                    
-                    # Add legend
-                    ax_3d2.legend(loc='upper left')
-                    
-                    # Improve viewing angle
-                    ax_3d2.view_init(elev=25, azim=45)
-                    
-                    plt.tight_layout()
-                    st.pyplot(fig_3d2)
-                    
-                    # Add insights table
-                    st.write("**📊 3D Analysis Summary:**")
-                    
-                    # Calculate some key metrics
-                    min_lcoe_surface1 = np.min(LCOE_mesh)
-                    max_lcoe_surface1 = np.max(LCOE_mesh)
-                    min_lcoe_surface2 = np.min(LCOE_mesh2)
-                    max_lcoe_surface2 = np.max(LCOE_mesh2)
-                    
-                    # Find optimal points
-                    min_idx1 = np.unravel_index(np.argmin(LCOE_mesh), LCOE_mesh.shape)
-                    optimal_pv1 = PV_mesh[min_idx1]
-                    optimal_ppa1 = PPA_mesh[min_idx1]
-                    
-                    min_idx2 = np.unravel_index(np.argmin(LCOE_mesh2), LCOE_mesh2.shape)
-                    optimal_spot2 = SPOT_mesh[min_idx2]
-                    optimal_pv2 = PV_mesh2[min_idx2]
-                    
-                    insights_data = {
-                        'Surface Analysis': ['PV vs PPA (Spot fixed)', 'Spot vs PV (PPA fixed)'],
-                        'LCOE Range (€/MWh)': [f"{min_lcoe_surface1:.1f} - {max_lcoe_surface1:.1f}",
-                                              f"{min_lcoe_surface2:.1f} - {max_lcoe_surface2:.1f}"],
-                        'Optimal Point': [f"PV: {optimal_pv1:.0f}€/MWh, PPA: {optimal_ppa1:.0f}€/MWh",
-                                         f"Spot: {optimal_spot2:.0f}€/MWh, PV: {optimal_pv2:.0f}€/MWh"],
-                        'Min LCOE (€/MWh)': [f"{min_lcoe_surface1:.2f}", f"{min_lcoe_surface2:.2f}"],
-                        'Current LCOE (€/MWh)': [f"{current_lcoe:.2f}", f"{current_lcoe2:.2f}"]
-                    }
-                    
-                    insights_df = pd.DataFrame(insights_data)
-                    st.dataframe(insights_df, use_container_width=True)
-                    
-                    # Add comprehensive 3D visualization with all three sources
-                    st.markdown("---")
-                    st.write("**🎯 Complete 3D Analysis: All Three Price Sources:**")
-                    
                     # Create a comprehensive figure with multiple visualization approaches
                     fig_complete = plt.figure(figsize=(16, 12))
                     
@@ -895,6 +755,8 @@ if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
                     
                     comprehensive_df = pd.DataFrame(optimal_combination)
                     st.dataframe(comprehensive_df, use_container_width=True)
+                else:
+                    st.warning("⚠️ No energy data available for 3D analysis. Please check the simulation parameters.")
                 
             except Exception as e:
                 st.error(f"❌ Error running simulation: {str(e)}")
