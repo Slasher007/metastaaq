@@ -193,17 +193,51 @@ st.sidebar.metric("H₂ Flow Rate", f"{h2_flowrate} Nm³/h")
 st.sidebar.metric("CH₄ Flow Rate", f"{ch4_flowrate} Nm³/h")
 st.sidebar.metric("CH₄ Production", f"{ch4_kg_per_day:.1f} kg/day")
 
+# Add parameter change detection using session state
+if 'last_params' not in st.session_state:
+    st.session_state.last_params = {}
 
+# Current parameters
+current_params = {
+    'years': tuple(sorted(selected_years)) if selected_years else (),
+    'power': electrolyser_power,
+    'consumption': electrolyser_specific_consumption,
+    'service_ratio': service_ratio,
+    'target_prices': tuple(target_prices),
+    'pv_price': pv_price,
+    'ppa_price': ppa_price
+}
 
-# Main content area
-if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
+# Check if parameters have changed
+params_changed = st.session_state.last_params != current_params
+
+# Update session state
+st.session_state.last_params = current_params.copy()
+
+# Add manual refresh button (optional)
+col1, col2 = st.columns([3, 1])
+with col1:
+    st.markdown("### 📊 Simulation Results")
+    if params_changed:
+        st.info("🔄 Parameters changed - Results updating automatically...")
+
+with col2:
+    manual_refresh = st.button("🔄 Manual Refresh", help="Force refresh the simulation")
+
+# Auto-run simulation when parameters change or manual refresh is clicked
+run_simulation = params_changed or manual_refresh or 'simulation_run' not in st.session_state
+
+if run_simulation:
     if data_content.empty:
         st.error("❌ No data available. Please upload a valid CSV file.")
     else:
         # Create placeholder for results
         results_placeholder = st.empty()
         
-        with st.spinner("Running simulation..."):
+        # Show appropriate loading message
+        loading_message = "🔄 Updating simulation with new parameters..." if params_changed else "🚀 Running simulation..."
+        
+        with st.spinner(loading_message):
             try:
                 # Run custom simulation with Streamlit-compatible plotting
                 all_results = []
@@ -758,9 +792,18 @@ if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
                 else:
                     st.warning("⚠️ No energy data available for 3D analysis. Please check the simulation parameters.")
                 
+                # Mark simulation as completed
+                st.session_state.simulation_run = True
+                
             except Exception as e:
                 st.error(f"❌ Error running simulation: {str(e)}")
                 st.exception(e)  # Show full error details for debugging
+else:
+    # Show message when no simulation needs to be run
+    if 'simulation_run' in st.session_state:
+        st.success("✅ Simulation up to date. Change any parameter above to refresh results.")
+    else:
+        st.info("👆 Adjust parameters in the sidebar to start the simulation.")
 
 
 
@@ -781,10 +824,13 @@ st.markdown(
 with st.expander("ℹ️ How to use this dashboard"):
     st.markdown("""
     1. **Select Years**: Choose which years to include in the analysis
-    2. **Set Parameters**: Adjust electrolyzer power, consumption, and service ratio
+    2. **Set Parameters**: Adjust electrolyzer power, consumption, and service ratio  
     3. **Choose Prices**: Select single or multiple target spot prices for analysis
-    4. **Run Simulation**: Click the "Run Simulation" button to start the analysis
-    5. **View Results**: Charts and tables will be displayed below
+    4. **Auto-Update**: Results update automatically when you change any parameter!
+    5. **Manual Refresh**: Use the "Manual Refresh" button if needed
+    6. **View Results**: Charts and tables are displayed below the parameters
+    
+    **✨ New Feature**: The simulation now runs automatically whenever you change a parameter - no need to click "Run Simulation" anymore!
     
     **Data Source**: The dashboard uses pre-loaded spot price data for France (2021-2025).
     """)
