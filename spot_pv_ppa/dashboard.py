@@ -106,14 +106,14 @@ service_ratio = st.sidebar.slider(
 # Price parameters
 st.sidebar.markdown("#### 💰 Price Parameters")
 target_price_mode = st.sidebar.radio(
-    "Price Selection Mode",
+    "Spot Price Selection Mode",
     options=["Single Price", "Multiple Prices"],
-    help="Choose to analyze single or multiple target prices"
+    help="Choose to analyze single or multiple target spot prices"
 )
 
 if target_price_mode == "Single Price":
     target_prices = [st.sidebar.slider(
-        "Target Price (€/MWh)",
+        "Target Spot Price (€/MWh)",
         min_value=5,
         max_value=50,
         value=15,
@@ -121,20 +121,41 @@ if target_price_mode == "Single Price":
     )]
 else:
     price_range = st.sidebar.slider(
-        "Price Range (€/MWh)",
+        "Spot Price Range (€/MWh)",
         min_value=5,
         max_value=50,
         value=(10, 30),
         step=5
     )
     price_step = st.sidebar.slider(
-        "Price Step (€/MWh)",
+        "Spot Price Step (€/MWh)",
         min_value=1,
         max_value=10,
         value=5,
         step=1
     )
     target_prices = list(range(price_range[0], price_range[1] + 1, price_step))
+
+# PV and PPA Price Parameters
+st.sidebar.markdown("#### 🌞 PV Price")
+pv_price = st.sidebar.slider(
+    "PV Price (€/MWh)",
+    min_value=0,
+    max_value=100,
+    value=50,
+    step=5,
+    help="Price of photovoltaic energy"
+)
+
+st.sidebar.markdown("#### 📋 PPA Price")
+ppa_price = st.sidebar.slider(
+    "PPA Price (€/MWh)",
+    min_value=50,
+    max_value=200,
+    value=80,
+    step=5,
+    help="Power Purchase Agreement price"
+)
 
 # Calculate derived parameters
 h2_flowrate = round((electrolyser_power * 1000) / electrolyser_specific_consumption)
@@ -148,6 +169,8 @@ st.sidebar.markdown("#### 📊 Calculated Parameters")
 st.sidebar.metric("H₂ Flow Rate", f"{h2_flowrate} Nm³/h")
 st.sidebar.metric("CH₄ Flow Rate", f"{ch4_flowrate} Nm³/h")
 st.sidebar.metric("CH₄ Production", f"{ch4_kg_per_day:.1f} kg/day")
+st.sidebar.metric("PV Price", f"{pv_price} €/MWh")
+st.sidebar.metric("PPA Price", f"{ppa_price} €/MWh")
 
 # Main content area
 if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
@@ -163,7 +186,7 @@ if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
                 all_results = []
                 
                 for i, target_price in enumerate(target_prices):
-                    st.write(f"**Analyzing target price: {target_price} €/MWh**")
+                    st.write(f"**Analyzing target spot price: {target_price} €/MWh**")
                     
                     # Run simulation components
                     expected_monthly_hours = get_required_hours_per_month(service_ratio)
@@ -335,7 +358,7 @@ if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
                     comparison_data = []
                     for result in all_results:
                         comparison_data.append({
-                            'Target Price (€/MWh)': result['target_price'],
+                            'Target Spot Price (€/MWh)': result['target_price'],
                             'Avg Monthly Hours': f"{result['monthly_avg_hours']:.1f}",
                             'Avg Monthly Power (MWh)': f"{result['monthly_avg_power']:.1f}"
                         })
@@ -351,13 +374,13 @@ if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
                     power = [r['monthly_avg_power'] for r in all_results]
                     
                     ax_comp1.plot(prices, hours, 'o-', color='blue', linewidth=2, markersize=8)
-                    ax_comp1.set_xlabel('Target Price (€/MWh)')
+                    ax_comp1.set_xlabel('Target Spot Price (€/MWh)')
                     ax_comp1.set_ylabel('Average Monthly Hours')
                     ax_comp1.set_title('Hours vs Price')
                     ax_comp1.grid(True, alpha=0.3)
                     
                     ax_comp2.plot(prices, power, 'o-', color='green', linewidth=2, markersize=8)
-                    ax_comp2.set_xlabel('Target Price (€/MWh)')
+                    ax_comp2.set_xlabel('Target Spot Price (€/MWh)')
                     ax_comp2.set_ylabel('Average Monthly Power (MWh)')
                     ax_comp2.set_title('Power vs Price')
                     ax_comp2.grid(True, alpha=0.3)
@@ -379,7 +402,7 @@ with col_sum1:
 with col_sum2:
     st.metric("Electrolyzer Power", f"{electrolyser_power} MW")
 with col_sum3:
-    st.metric("Target Prices", f"{len(target_prices)} price(s)")
+    st.metric("Target Spot Prices", f"{len(target_prices)} price(s)")
 
 # Footer
 st.markdown("---")
@@ -399,7 +422,7 @@ with st.expander("ℹ️ How to use this dashboard"):
     st.markdown("""
     1. **Select Years**: Choose which years to include in the analysis
     2. **Set Parameters**: Adjust electrolyzer power, consumption, and service ratio
-    3. **Choose Prices**: Select single or multiple target prices for analysis
+    3. **Choose Prices**: Select single or multiple target spot prices for analysis
     4. **Run Simulation**: Click the "Run Simulation" button to start the analysis
     5. **View Results**: Charts and tables will be displayed below
     
