@@ -44,7 +44,9 @@ def calculate_max_hours(df, target_price=15):
                 max_hours = i
             else:
                 break  # Stop once target price is exceeded
-
+        
+        if max_hours == 0:
+          max_hours = None
         # Create nested dictionary structure with string keys (month as full name)
         year_str = str(year)
         month_name = calendar.month_name[month]
