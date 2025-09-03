@@ -364,6 +364,58 @@ if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
                     plt.tight_layout()
                     st.pyplot(fig2)
                     
+                    # Create pie chart for energy coverage distribution
+                    st.write("**🥧 Energy Coverage Distribution:**")
+                    
+                    # Calculate total energy for each source
+                    total_pv_energy = sum(df_plot_data['PV'])
+                    total_spot_energy = sum(df_plot_data['Spot'])
+                    total_ppa_energy = sum(df_plot_data['PPA'])
+                    
+                    # Create pie chart data
+                    pie_data = [total_pv_energy, total_spot_energy, total_ppa_energy]
+                    pie_labels = ['PV', 'Spot', 'PPA']
+                    pie_colors = ['blue', 'green', 'red']
+                    
+                    # Filter out zero values for cleaner pie chart
+                    filtered_data = []
+                    filtered_labels = []
+                    filtered_colors = []
+                    
+                    for i, value in enumerate(pie_data):
+                        if value > 0:
+                            filtered_data.append(value)
+                            filtered_labels.append(pie_labels[i])
+                            filtered_colors.append(pie_colors[i])
+                    
+                    if filtered_data:  # Only create pie chart if there's data
+                        fig3, ax4 = plt.subplots(figsize=(4, 3))
+                        
+                        # Create pie chart with percentages
+                        wedges, texts, autotexts = ax4.pie(
+                            filtered_data, 
+                            labels=filtered_labels, 
+                            colors=filtered_colors,
+                            autopct='%1.1f%%',
+                            startangle=90,
+                            textprops={'fontsize': 12, 'fontweight': 'bold'}
+                        )
+                        
+                        # Enhance the appearance
+                        for autotext in autotexts:
+                            autotext.set_color('white')
+                            autotext.set_fontweight('bold')
+                        
+                        ax4.set_title(f'Energy Coverage Distribution - {target_price}€/MWh', 
+                                     fontsize=14, fontweight='bold', pad=20)
+                        
+                        # Add legend with energy values
+                        legend_labels = [f'{label}: {value:.1f} MWh' for label, value in zip(filtered_labels, filtered_data)]
+                        ax4.legend(wedges, legend_labels, loc="center left", bbox_to_anchor=(1, 0, 0.5, 1))
+                        
+                        plt.tight_layout()
+                        st.pyplot(fig3)
+                    
                     # Display LCOE
                     st.metric(f"**LCOE (Levelized Cost of Energy) for {target_price}€/MWh spot price:**", 
                              f"{lcoe:.2f} €/MWh")
