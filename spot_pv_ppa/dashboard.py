@@ -446,7 +446,7 @@ if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
                     # Style the dataframe to highlight the yearly total row
                     def highlight_yearly_row(row):
                         if row.name == len(breakdown_df) - 1:  # Last row (yearly total)
-                            return ['background-color: #e6f3ff; font-weight: bold'] * len(row)
+                            return ['background-color: #1f77b4; color: white; font-weight: bold'] * len(row)
                         return [''] * len(row)
                     
                     styled_df = breakdown_df.style.apply(highlight_yearly_row, axis=1)
@@ -463,7 +463,7 @@ if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
                         'lcoe': lcoe
                     })
                     
-                    st.success(f"✅ Completed analysis for {target_price} €/MWh")
+
                     
                     if i < len(target_prices) - 1:
                         st.markdown("---")
