@@ -265,28 +265,28 @@ if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
                     
                     df_plot_data = pd.DataFrame({
                         'Maximum Consumption (MWh)': pd.Series(max_monthly_consumption),
-                        'PV-covered': pd.Series(pv_energy_mwh),
-                        'Spot Target': pd.Series(monthly_available_power)
+                        'PV': pd.Series(pv_energy_mwh),
+                        'Spot': pd.Series(monthly_available_power)
                     })
                     
                     df_plot_data['PPA'] = (
                         df_plot_data['Maximum Consumption (MWh)'] - 
-                        df_plot_data['PV-covered'] - 
-                        df_plot_data['Spot Target']
+                        df_plot_data['PV'] - 
+                        df_plot_data['Spot']
                     ).clip(lower=0)
                     
                     month_order = list(calendar.month_name)[1:]
                     df_plot_data = df_plot_data.reindex(month_order)
                     
                     fig2, ax3 = plt.subplots(figsize=(12, 6))
-                    df_plot_data[['PV-covered', 'Spot Target', 'PPA']].plot(
+                    df_plot_data[['PV', 'Spot', 'PPA']].plot(
                         kind='bar', stacked=True, ax=ax3, color=['blue', 'green', 'red']
                     )
                     
                     # Add percentage labels inside bars with white text
                     for i, month in enumerate(df_plot_data.index):
-                        pv_val = df_plot_data.loc[month, 'PV-covered']
-                        spot_val = df_plot_data.loc[month, 'Spot Target']
+                        pv_val = df_plot_data.loc[month, 'PV']
+                        spot_val = df_plot_data.loc[month, 'Spot']
                         ppa_val = df_plot_data.loc[month, 'PPA']
                         
                         # Use the sum of plotted segments as total (this is what's actually displayed in the chart)
