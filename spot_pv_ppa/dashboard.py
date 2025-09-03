@@ -709,6 +709,192 @@ if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
                     
                     insights_df = pd.DataFrame(insights_data)
                     st.dataframe(insights_df, use_container_width=True)
+                    
+                    # Add comprehensive 3D visualization with all three sources
+                    st.markdown("---")
+                    st.write("**🎯 Complete 3D Analysis: All Three Price Sources:**")
+                    
+                    # Create a comprehensive figure with multiple visualization approaches
+                    fig_complete = plt.figure(figsize=(16, 12))
+                    
+                    # Method 1: 3D Scatter plot with color coding
+                    ax1 = fig_complete.add_subplot(221, projection='3d')
+                    
+                    # Create sample points across all three dimensions
+                    n_samples = 100
+                    pv_samples = np.random.uniform(0, 100, n_samples)
+                    ppa_samples = np.random.uniform(50, 150, n_samples)
+                    spot_samples = np.random.uniform(5, 50, n_samples)
+                    
+                    # Calculate LCOE for each sample point
+                    lcoe_samples = []
+                    for i in range(n_samples):
+                        pv_cost = base_pv_energy * pv_samples[i]
+                        spot_cost = base_spot_energy * spot_samples[i]
+                        ppa_cost = base_ppa_energy * ppa_samples[i]
+                        lcoe = (pv_cost + spot_cost + ppa_cost) / total_energy
+                        lcoe_samples.append(lcoe)
+                    
+                    # Create 3D scatter plot with color-coded LCOE
+                    scatter = ax1.scatter(pv_samples, ppa_samples, spot_samples, 
+                                        c=lcoe_samples, cmap='viridis', s=50, alpha=0.7)
+                    
+                    # Add current point
+                    current_lcoe_3d = (base_pv_energy * pv_price + base_spot_energy * target_prices[0] + base_ppa_energy * ppa_price) / total_energy
+                    ax1.scatter([pv_price], [ppa_price], [target_prices[0]], 
+                              color='red', s=200, marker='*', label=f'Current: {current_lcoe_3d:.2f}€/MWh')
+                    
+                    ax1.set_xlabel('PV Price (€/MWh)')
+                    ax1.set_ylabel('PPA Price (€/MWh)')
+                    ax1.set_zlabel('Spot Price (€/MWh)')
+                    ax1.set_title('3D Price Space\n(Color = LCOE)', fontweight='bold')
+                    ax1.legend()
+                    
+                    # Add colorbar for scatter plot
+                    cbar1 = plt.colorbar(scatter, ax=ax1, shrink=0.8, aspect=20)
+                    cbar1.set_label('LCOE (€/MWh)')
+                    
+                    # Method 2: Multiple 2D contour plots
+                    ax2 = fig_complete.add_subplot(222)
+                    
+                    # Create contour plot for PV vs PPA (at current spot price)
+                    pv_contour = np.linspace(0, 100, 20)
+                    ppa_contour = np.linspace(50, 150, 20)
+                    PV_cont, PPA_cont = np.meshgrid(pv_contour, ppa_contour)
+                    
+                    LCOE_contour = np.zeros_like(PV_cont)
+                    for i in range(len(ppa_contour)):
+                        for j in range(len(pv_contour)):
+                            pv_cost = base_pv_energy * PV_cont[i, j]
+                            spot_cost = base_spot_energy * target_prices[0]  # Fixed spot
+                            ppa_cost = base_ppa_energy * PPA_cont[i, j]
+                            LCOE_contour[i, j] = (pv_cost + spot_cost + ppa_cost) / total_energy
+                    
+                    contour = ax2.contourf(PV_cont, PPA_cont, LCOE_contour, levels=15, cmap='viridis', alpha=0.8)
+                    contour_lines = ax2.contour(PV_cont, PPA_cont, LCOE_contour, levels=15, colors='black', alpha=0.4, linewidths=0.5)
+                    ax2.clabel(contour_lines, inline=True, fontsize=8, fmt='%.1f')
+                    
+                    # Add current point
+                    ax2.plot(pv_price, ppa_price, 'r*', markersize=15, label=f'Current: {current_lcoe_3d:.2f}€/MWh')
+                    
+                    ax2.set_xlabel('PV Price (€/MWh)')
+                    ax2.set_ylabel('PPA Price (€/MWh)')
+                    ax2.set_title(f'LCOE Contours: PV vs PPA\n(Spot = {target_prices[0]}€/MWh)', fontweight='bold')
+                    ax2.legend()
+                    
+                    plt.colorbar(contour, ax=ax2, label='LCOE (€/MWh)')
+                    
+                    # Method 3: Parallel coordinates plot
+                    ax3 = fig_complete.add_subplot(223)
+                    
+                    # Create multiple scenarios
+                    n_scenarios = 50
+                    scenarios_pv = np.linspace(0, 100, n_scenarios)
+                    scenarios_ppa = np.linspace(50, 150, n_scenarios)
+                    scenarios_spot = np.linspace(5, 50, n_scenarios)
+                    
+                    # Calculate LCOE for different scenarios
+                    for i in range(0, n_scenarios, 5):  # Every 5th scenario to avoid clutter
+                        pv_p = scenarios_pv[i]
+                        ppa_p = scenarios_ppa[i]
+                        spot_p = scenarios_spot[i]
+                        
+                        lcoe_scenario = (base_pv_energy * pv_p + base_spot_energy * spot_p + base_ppa_energy * ppa_p) / total_energy
+                        
+                        # Normalize values for parallel coordinates
+                        pv_norm = pv_p / 100
+                        ppa_norm = (ppa_p - 50) / 100
+                        spot_norm = (spot_p - 5) / 45
+                        lcoe_norm = (lcoe_scenario - min(lcoe_samples)) / (max(lcoe_samples) - min(lcoe_samples))
+                        
+                        # Plot line connecting all dimensions
+                        ax3.plot([0, 1, 2, 3], [pv_norm, ppa_norm, spot_norm, lcoe_norm], 
+                                alpha=0.3, color=plt.cm.viridis(lcoe_norm))
+                    
+                    # Current scenario
+                    current_pv_norm = pv_price / 100
+                    current_ppa_norm = (ppa_price - 50) / 100
+                    current_spot_norm = (target_prices[0] - 5) / 45
+                    current_lcoe_norm = (current_lcoe_3d - min(lcoe_samples)) / (max(lcoe_samples) - min(lcoe_samples))
+                    
+                    ax3.plot([0, 1, 2, 3], [current_pv_norm, current_ppa_norm, current_spot_norm, current_lcoe_norm], 
+                            'r-', linewidth=3, marker='o', markersize=8, label='Current Configuration')
+                    
+                    ax3.set_xticks([0, 1, 2, 3])
+                    ax3.set_xticklabels(['PV\n(0-100€)', 'PPA\n(50-150€)', 'Spot\n(5-50€)', 'LCOE\n(normalized)'])
+                    ax3.set_ylabel('Normalized Values (0-1)')
+                    ax3.set_title('Parallel Coordinates:\nPrice Dependencies', fontweight='bold')
+                    ax3.legend()
+                    ax3.grid(True, alpha=0.3)
+                    
+                    # Method 4: Heatmap matrix showing price combinations
+                    ax4 = fig_complete.add_subplot(224)
+                    
+                    # Create a simplified grid for heatmap
+                    pv_heat = np.linspace(0, 100, 10)
+                    ppa_heat = np.linspace(50, 150, 10)
+                    
+                    # Use current spot price
+                    spot_fixed = target_prices[0]
+                    
+                    heat_matrix = np.zeros((len(ppa_heat), len(pv_heat)))
+                    for i, ppa_p in enumerate(ppa_heat):
+                        for j, pv_p in enumerate(pv_heat):
+                            pv_cost = base_pv_energy * pv_p
+                            spot_cost = base_spot_energy * spot_fixed
+                            ppa_cost = base_ppa_energy * ppa_p
+                            heat_matrix[i, j] = (pv_cost + spot_cost + ppa_cost) / total_energy
+                    
+                    heatmap = ax4.imshow(heat_matrix, cmap='viridis', aspect='auto', origin='lower')
+                    
+                    # Add text annotations
+                    for i in range(len(ppa_heat)):
+                        for j in range(len(pv_heat)):
+                            text = ax4.text(j, i, f'{heat_matrix[i, j]:.1f}',
+                                          ha="center", va="center", color="white", fontsize=8)
+                    
+                    # Find current position in grid
+                    current_j = np.argmin(np.abs(pv_heat - pv_price))
+                    current_i = np.argmin(np.abs(ppa_heat - ppa_price))
+                    ax4.plot(current_j, current_i, 'r*', markersize=20)
+                    
+                    ax4.set_xticks(range(len(pv_heat)))
+                    ax4.set_xticklabels([f'{x:.0f}' for x in pv_heat])
+                    ax4.set_yticks(range(len(ppa_heat)))
+                    ax4.set_yticklabels([f'{y:.0f}' for y in ppa_heat])
+                    ax4.set_xlabel('PV Price (€/MWh)')
+                    ax4.set_ylabel('PPA Price (€/MWh)')
+                    ax4.set_title(f'LCOE Heatmap\n(Spot = {spot_fixed}€/MWh)', fontweight='bold')
+                    
+                    plt.colorbar(heatmap, ax=ax4, label='LCOE (€/MWh)')
+                    
+                    plt.suptitle('Comprehensive LCOE Analysis: All Three Price Sources', 
+                                fontsize=16, fontweight='bold', y=0.98)
+                    plt.tight_layout()
+                    st.pyplot(fig_complete)
+                    
+                    # Add comprehensive insights
+                    st.write("**🔍 Multi-Dimensional Analysis Insights:**")
+                    
+                    # Calculate optimal combinations
+                    min_lcoe_overall = min(lcoe_samples)
+                    max_lcoe_overall = max(lcoe_samples)
+                    min_idx = lcoe_samples.index(min_lcoe_overall)
+                    
+                    optimal_combination = {
+                        'Analysis Type': ['3D Scatter Plot', 'Current Configuration', 'Optimal Found', 'Range Analysis'],
+                        'PV Price (€/MWh)': [f'{np.mean(pv_samples):.1f} (avg)', f'{pv_price:.1f}', 
+                                           f'{pv_samples[min_idx]:.1f}', f'{min(pv_samples):.1f}-{max(pv_samples):.1f}'],
+                        'PPA Price (€/MWh)': [f'{np.mean(ppa_samples):.1f} (avg)', f'{ppa_price:.1f}', 
+                                            f'{ppa_samples[min_idx]:.1f}', f'{min(ppa_samples):.1f}-{max(ppa_samples):.1f}'],
+                        'Spot Price (€/MWh)': [f'{np.mean(spot_samples):.1f} (avg)', f'{target_prices[0]:.1f}', 
+                                             f'{spot_samples[min_idx]:.1f}', f'{min(spot_samples):.1f}-{max(spot_samples):.1f}'],
+                        'LCOE (€/MWh)': [f'{np.mean(lcoe_samples):.2f} (avg)', f'{current_lcoe_3d:.2f}', 
+                                       f'{min_lcoe_overall:.2f}', f'{min_lcoe_overall:.2f}-{max_lcoe_overall:.2f}']
+                    }
+                    
+                    comprehensive_df = pd.DataFrame(optimal_combination)
+                    st.dataframe(comprehensive_df, use_container_width=True)
                 
             except Exception as e:
                 st.error(f"❌ Error running simulation: {str(e)}")
