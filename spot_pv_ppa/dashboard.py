@@ -14,7 +14,7 @@ from calculate_percentage_difference import calculate_percentage_difference
 
 # Set page configuration
 st.set_page_config(
-    page_title="MetaSTAAQ - Electrolyzer Simulation Dashboard",
+    page_title="MetaSTAAQ - LCOE Simulation Dashboard",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -47,7 +47,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Title
-st.markdown('<p class="main-header">⚡ MetaSTAAQ Electrolyzer Simulation Dashboard</p>', unsafe_allow_html=True)
+st.markdown('<p class="main-header">⚡ MetaSTAAQ LCOE Simulation Dashboard</p>', unsafe_allow_html=True)
 
 # Sidebar for parameters
 st.sidebar.markdown("### 🔧 Simulation Parameters")
@@ -111,9 +111,9 @@ with col1:
         monthly_service_ratios[month] = st.slider(
             f"{month[:3]}",  # Short month name
             min_value=0.0,
-            max_value=1.0,
-            value=0.98,
-            step=0.01,
+    max_value=1.0,
+    value=0.98,
+    step=0.01,
             key=f"service_{month}",
             help=f"Service ratio for {month}"
         )
@@ -952,7 +952,7 @@ st.markdown("---")
 st.markdown(
     """
     <div style='text-align: center; color: #666;'>
-        <p>MetaSTAAQ Electrolyzer Simulation Dashboard | 
+        <p>MetaSTAAQ LCOE Simulation Dashboard | 
         Built with Streamlit | 
         Data-driven energy analysis</p>
     </div>
@@ -964,7 +964,7 @@ st.markdown(
 with st.expander("ℹ️ How to use this dashboard"):
     st.markdown("""
     1. **Select Years**: Choose which years to include in the analysis
-    2. **Set Parameters**: Adjust electrolyzer power, consumption, and service ratio  
+    2. **Set Parameters**: Adjust electrolyzer power, consumption, and service ratio
     3. **Choose Prices**: Select single or multiple target spot prices for analysis
     4. **Auto-Update**: Results update automatically when you change any parameter!
     5. **Manual Refresh**: Use the "Manual Refresh" button if needed
