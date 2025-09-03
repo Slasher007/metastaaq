@@ -53,26 +53,13 @@ st.markdown('<p class="main-header">⚡ MetaSTAAQ Electrolyzer Simulation Dashbo
 # Sidebar for parameters
 st.sidebar.markdown("### 🔧 Simulation Parameters")
 
-# File upload
-st.sidebar.markdown("#### 📁 Data File")
-uploaded_file = st.sidebar.file_uploader(
-    "Upload CSV file", 
-    type=['csv'],
-    help="Upload the processed spot price data CSV file"
-)
-
-# Use default file if none uploaded
-if uploaded_file is None:
-    default_file_path = 'processed_donnees_prix_spot_fr_2021_2025_month_8.csv'
-    try:
-        data_content = pd.read_csv(default_file_path)
-        st.sidebar.success(f"✅ Using default file: {default_file_path}")
-    except FileNotFoundError:
-        st.sidebar.error("❌ Default file not found. Please upload a CSV file.")
-        st.stop()
-else:
-    data_content = pd.read_csv(uploaded_file)
-    st.sidebar.success("✅ File uploaded successfully!")
+# Load default data file
+default_file_path = 'processed_donnees_prix_spot_fr_2021_2025_month_8.csv'
+try:
+    data_content = pd.read_csv(default_file_path)
+except FileNotFoundError:
+    st.error("❌ Default data file not found. Please ensure the data file is in the correct location.")
+    st.stop()
 
 # Year selection
 st.sidebar.markdown("#### 📅 Year Selection")
@@ -386,14 +373,12 @@ if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
 st.markdown("---")
 st.markdown("### 📋 Quick Summary")
 
-col_sum1, col_sum2, col_sum3, col_sum4 = st.columns(4)
+col_sum1, col_sum2, col_sum3 = st.columns(3)
 with col_sum1:
     st.metric("Selected Years", f"{len(selected_years)} years")
 with col_sum2:
-    st.metric("Data Points", f"{len(data_content):,}" if not data_content.empty else "0")
-with col_sum3:
     st.metric("Electrolyzer Power", f"{electrolyser_power} MW")
-with col_sum4:
+with col_sum3:
     st.metric("Target Prices", f"{len(target_prices)} price(s)")
 
 # Footer
@@ -412,12 +397,11 @@ st.markdown(
 # Instructions
 with st.expander("ℹ️ How to use this dashboard"):
     st.markdown("""
-    1. **Upload Data**: Use the file uploader in the sidebar to upload your CSV data file, or use the default file
-    2. **Select Years**: Choose which years to include in the analysis
-    3. **Set Parameters**: Adjust electrolyzer power, consumption, and service ratio
-    4. **Choose Prices**: Select single or multiple target prices for analysis
-    5. **Run Simulation**: Click the "Run Simulation" button to start the analysis
-    6. **View Results**: Charts and tables will be displayed below
+    1. **Select Years**: Choose which years to include in the analysis
+    2. **Set Parameters**: Adjust electrolyzer power, consumption, and service ratio
+    3. **Choose Prices**: Select single or multiple target prices for analysis
+    4. **Run Simulation**: Click the "Run Simulation" button to start the analysis
+    5. **View Results**: Charts and tables will be displayed below
     
-    **Required CSV Columns**: The uploaded file should contain at least an 'Annee' (year) column and price data.
+    **Data Source**: The dashboard uses pre-loaded spot price data for France (2021-2025).
     """)
