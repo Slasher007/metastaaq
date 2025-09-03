@@ -1,0 +1,384 @@
+import streamlit as st
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+import io
+import base64
+import calendar
+
+# Import individual functions to have better control over plotting
+from get_required_hours_per_month import get_required_hours_per_month
+from get_expected_monthly_power_cons import get_expected_monthly_power_cons
+from calculate_max_hours import calculate_max_hours
+from display_table import display_table
+from calculate_percentage_difference import calculate_percentage_difference
+
+# Set page configuration
+st.set_page_config(
+    page_title="MetaSTAAQ - Electrolyzer Simulation Dashboard",
+    page_icon="⚡",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Custom CSS for better styling
+st.markdown("""
+<style>
+    .main-header {
+        font-size: 2.5rem;
+        font-weight: bold;
+        color: #1f77b4;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    .section-header {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #2e7d32;
+        margin-top: 2rem;
+        margin-bottom: 1rem;
+    }
+    .metric-card {
+        background-color: #f0f2f6;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        border-left: 4px solid #1f77b4;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Title
+st.markdown('<p class="main-header">⚡ MetaSTAAQ Electrolyzer Simulation Dashboard</p>', unsafe_allow_html=True)
+
+# Sidebar for parameters
+st.sidebar.markdown("### 🔧 Simulation Parameters")
+
+# File upload
+st.sidebar.markdown("#### 📁 Data File")
+uploaded_file = st.sidebar.file_uploader(
+    "Upload CSV file", 
+    type=['csv'],
+    help="Upload the processed spot price data CSV file"
+)
+
+# Use default file if none uploaded
+if uploaded_file is None:
+    default_file_path = 'processed_donnees_prix_spot_fr_2021_2025_month_8.csv'
+    try:
+        data_content = pd.read_csv(default_file_path)
+        st.sidebar.success(f"✅ Using default file: {default_file_path}")
+    except FileNotFoundError:
+        st.sidebar.error("❌ Default file not found. Please upload a CSV file.")
+        st.stop()
+else:
+    data_content = pd.read_csv(uploaded_file)
+    st.sidebar.success("✅ File uploaded successfully!")
+
+# Year selection
+st.sidebar.markdown("#### 📅 Year Selection")
+available_years = sorted(data_content['Annee'].unique()) if 'Annee' in data_content.columns else [2024, 2025]
+selected_years = st.sidebar.multiselect(
+    "Select years for analysis",
+    options=available_years,
+    default=[2024, 2025] if all(year in available_years for year in [2024, 2025]) else available_years[:2]
+)
+
+# Filter data by selected years
+if selected_years:
+    data_content = data_content[data_content['Annee'].isin(selected_years)]
+
+# Electrolyzer parameters
+st.sidebar.markdown("#### ⚡ Electrolyzer Parameters")
+electrolyser_power = st.sidebar.slider(
+    "Electrolyzer Power (MW)",
+    min_value=1.0,
+    max_value=20.0,
+    value=5.0,
+    step=0.5,
+    help="Power capacity of the electrolyzer in MW"
+)
+
+electrolyser_specific_consumption = st.sidebar.slider(
+    "Specific Consumption (kWh/Nm³ H₂)",
+    min_value=4.0,
+    max_value=6.0,
+    value=4.8,
+    step=0.1,
+    help="Energy consumption per cubic meter of hydrogen produced"
+)
+
+service_ratio = st.sidebar.slider(
+    "Service Ratio",
+    min_value=0.8,
+    max_value=1.0,
+    value=0.98,
+    step=0.01,
+    help="Electrolyzer availability ratio (0-1)"
+)
+
+# Price parameters
+st.sidebar.markdown("#### 💰 Price Parameters")
+target_price_mode = st.sidebar.radio(
+    "Price Selection Mode",
+    options=["Single Price", "Multiple Prices"],
+    help="Choose to analyze single or multiple target prices"
+)
+
+if target_price_mode == "Single Price":
+    target_prices = [st.sidebar.slider(
+        "Target Price (€/MWh)",
+        min_value=5,
+        max_value=50,
+        value=15,
+        step=1
+    )]
+else:
+    price_range = st.sidebar.slider(
+        "Price Range (€/MWh)",
+        min_value=5,
+        max_value=50,
+        value=(10, 30),
+        step=5
+    )
+    price_step = st.sidebar.slider(
+        "Price Step (€/MWh)",
+        min_value=1,
+        max_value=10,
+        value=5,
+        step=1
+    )
+    target_prices = list(range(price_range[0], price_range[1] + 1, price_step))
+
+# Calculate derived parameters
+h2_flowrate = round((electrolyser_power * 1000) / electrolyser_specific_consumption)
+stoechio_H2_CH4 = 4
+ch4_flowrate = round(h2_flowrate / stoechio_H2_CH4)
+ch4_density = 0.7168  # kg/Nm³ CH₄
+ch4_kg_per_day = ch4_flowrate * 24 * ch4_density
+
+# Display calculated parameters
+st.sidebar.markdown("#### 📊 Calculated Parameters")
+st.sidebar.metric("H₂ Flow Rate", f"{h2_flowrate} Nm³/h")
+st.sidebar.metric("CH₄ Flow Rate", f"{ch4_flowrate} Nm³/h")
+st.sidebar.metric("CH₄ Production", f"{ch4_kg_per_day:.1f} kg/day")
+
+# Main content area
+col1, col2 = st.columns([2, 1])
+
+with col1:
+    st.markdown('<p class="section-header">📈 Simulation Results</p>', unsafe_allow_html=True)
+    
+    if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
+        if data_content.empty:
+            st.error("❌ No data available. Please upload a valid CSV file.")
+        else:
+            # Create placeholder for results
+            results_placeholder = st.empty()
+            
+            with st.spinner("Running simulation..."):
+                try:
+                    # Run custom simulation with Streamlit-compatible plotting
+                    all_results = []
+                    
+                    for i, target_price in enumerate(target_prices):
+                        st.write(f"**Analyzing target price: {target_price} €/MWh**")
+                        
+                        # Run simulation components
+                        expected_monthly_hours = get_required_hours_per_month(service_ratio)
+                        expected_monthly_power = get_expected_monthly_power_cons(electrolyser_power, expected_monthly_hours)
+                        result = calculate_max_hours(data_content, target_price)
+                        df_result = display_table(result)
+                        
+                        # Calculate differences
+                        df_hour_diff = calculate_percentage_difference(df_result, expected_monthly_hours)
+                        df_power_consumption = df_result * electrolyser_power
+                        df_power_diff = calculate_percentage_difference(df_power_consumption, expected_monthly_power)
+                        
+                        # Display results table
+                        st.write("**📊 Available Hours per Month:**")
+                        st.dataframe(df_result, use_container_width=True)
+                        
+                        # Create and display charts
+                        col_chart1, col_chart2 = st.columns(2)
+                        
+                        with col_chart1:
+                            # Chart 1: Available Hours
+                            fig1, ax1 = plt.subplots(figsize=(10, 6))
+                            df_plot = df_result.T
+                            monthly_avg = df_plot.mean(axis=1)
+                            
+                            df_plot.plot(kind='bar', ax=ax1, legend=True)
+                            ax1.plot(monthly_avg.index, monthly_avg.values, 
+                                   color='black', linestyle='--', marker='o', label='Monthly Average')
+                            
+                            ax1.set_xlabel('Month')
+                            ax1.set_ylabel('Available Hours')
+                            ax1.set_title(f'Available Hours - {target_price}€/MWh')
+                            ax1.tick_params(axis='x', rotation=45)
+                            ax1.legend(loc='upper left')
+                            
+                            # Add second y-axis for power consumption
+                            ax2 = ax1.twinx()
+                            max_power_consumption = electrolyser_power * 24
+                            ax2.set_ylabel('Power Consumption (MWh/day)', color='blue')
+                            ax2.set_ylim(0, max_power_consumption)
+                            ax2.tick_params(axis='y', labelcolor='blue')
+                            
+                            plt.tight_layout()
+                            st.pyplot(fig1)
+                        
+                        with col_chart2:
+                            # Chart 2: Energy Coverage
+                            pv_energy_kwh = {
+                                "January": 41329.5, "February": 62809.8, "March": 100499.8,
+                                "April": 128700.4, "May": 132130.6, "June": 133177.3,
+                                "July": 136106.0, "August": 127150.4, "September": 112236.2,
+                                "October": 79940.3, "November": 48793.6, "December": 40402.6
+                            }
+                            pv_energy_mwh = {month: kwh / 1000 for month, kwh in pv_energy_kwh.items()}
+                            
+                            days_in_month = {
+                                "January": 31, "February": 28, "March": 31, "April": 30,
+                                "May": 31, "June": 30, "July": 31, "August": 31,
+                                "September": 30, "October": 31, "November": 30, "December": 31
+                            }
+                            
+                            monthly_available_power = df_power_consumption.mean().to_dict()
+                            max_monthly_consumption = {
+                                month: electrolyser_power * 24 * service_ratio * days_in_month[month]
+                                for month in days_in_month
+                            }
+                            
+                            df_plot_data = pd.DataFrame({
+                                'Maximum Consumption (MWh)': pd.Series(max_monthly_consumption),
+                                'PV-covered (MWh)': pd.Series(pv_energy_mwh),
+                                'Spot Target (MWh)': pd.Series(monthly_available_power)
+                            })
+                            
+                            df_plot_data['Remaining Unmet Demand (MWh)'] = (
+                                df_plot_data['Maximum Consumption (MWh)'] - 
+                                df_plot_data['PV-covered (MWh)'] - 
+                                df_plot_data['Spot Target (MWh)']
+                            ).clip(lower=0)
+                            
+                            month_order = list(calendar.month_name)[1:]
+                            df_plot_data = df_plot_data.reindex(month_order)
+                            
+                            fig2, ax3 = plt.subplots(figsize=(10, 6))
+                            df_plot_data[['PV-covered (MWh)', 'Spot Target (MWh)', 'Remaining Unmet Demand (MWh)']].plot(
+                                kind='bar', stacked=True, ax=ax3, color=['blue', 'green', 'red']
+                            )
+                            
+                            ax3.set_title(f'Monthly Energy Coverage - {target_price}€/MWh')
+                            ax3.set_xlabel('Month')
+                            ax3.set_ylabel('Energy (MWh)')
+                            ax3.tick_params(axis='x', rotation=45)
+                            
+                            plt.tight_layout()
+                            st.pyplot(fig2)
+                        
+                        # Store results
+                        all_results.append({
+                            'target_price': target_price,
+                            'df_result': df_result,
+                            'df_power_consumption': df_power_consumption,
+                            'monthly_avg_hours': df_result.mean().mean(),
+                            'monthly_avg_power': df_power_consumption.mean().mean()
+                        })
+                        
+                        st.success(f"✅ Completed analysis for {target_price} €/MWh")
+                        
+                        if i < len(target_prices) - 1:
+                            st.markdown("---")
+                    
+                    st.success(f"🎉 Simulation completed for {len(target_prices)} price point(s)!")
+                    
+                    # Add comparison summary if multiple prices
+                    if len(all_results) > 1:
+                        st.markdown("---")
+                        st.markdown("### 📈 Price Comparison Summary")
+                        
+                        comparison_data = []
+                        for result in all_results:
+                            comparison_data.append({
+                                'Target Price (€/MWh)': result['target_price'],
+                                'Avg Monthly Hours': f"{result['monthly_avg_hours']:.1f}",
+                                'Avg Monthly Power (MWh)': f"{result['monthly_avg_power']:.1f}"
+                            })
+                        
+                        comparison_df = pd.DataFrame(comparison_data)
+                        st.dataframe(comparison_df, use_container_width=True)
+                        
+                        # Price comparison chart
+                        fig_comp, (ax_comp1, ax_comp2) = plt.subplots(1, 2, figsize=(12, 5))
+                        
+                        prices = [r['target_price'] for r in all_results]
+                        hours = [r['monthly_avg_hours'] for r in all_results]
+                        power = [r['monthly_avg_power'] for r in all_results]
+                        
+                        ax_comp1.plot(prices, hours, 'o-', color='blue', linewidth=2, markersize=8)
+                        ax_comp1.set_xlabel('Target Price (€/MWh)')
+                        ax_comp1.set_ylabel('Average Monthly Hours')
+                        ax_comp1.set_title('Hours vs Price')
+                        ax_comp1.grid(True, alpha=0.3)
+                        
+                        ax_comp2.plot(prices, power, 'o-', color='green', linewidth=2, markersize=8)
+                        ax_comp2.set_xlabel('Target Price (€/MWh)')
+                        ax_comp2.set_ylabel('Average Monthly Power (MWh)')
+                        ax_comp2.set_title('Power vs Price')
+                        ax_comp2.grid(True, alpha=0.3)
+                        
+                        plt.tight_layout()
+                        st.pyplot(fig_comp)
+                    
+                except Exception as e:
+                    st.error(f"❌ Error running simulation: {str(e)}")
+                    st.exception(e)  # Show full error details for debugging
+
+with col2:
+    st.markdown('<p class="section-header">📋 Summary</p>', unsafe_allow_html=True)
+    
+    # Display key parameters in metric cards
+    st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+    st.metric("Selected Years", f"{len(selected_years)} years")
+    st.metric("Data Points", f"{len(data_content):,}" if not data_content.empty else "0")
+    st.metric("Electrolyzer Power", f"{electrolyser_power} MW")
+    st.metric("Target Prices", f"{len(target_prices)} price(s)")
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Show target prices
+    if len(target_prices) > 1:
+        st.markdown("**Target Prices (€/MWh):**")
+        for price in target_prices:
+            st.write(f"• {price}")
+    
+    # Data preview
+    if not data_content.empty:
+        st.markdown("**Data Preview:**")
+        st.dataframe(data_content.head(5), use_container_width=True)
+
+# Footer
+st.markdown("---")
+st.markdown(
+    """
+    <div style='text-align: center; color: #666;'>
+        <p>MetaSTAAQ Electrolyzer Simulation Dashboard | 
+        Built with Streamlit | 
+        Data-driven energy analysis</p>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+# Instructions
+with st.expander("ℹ️ How to use this dashboard"):
+    st.markdown("""
+    1. **Upload Data**: Use the file uploader in the sidebar to upload your CSV data file, or use the default file
+    2. **Select Years**: Choose which years to include in the analysis
+    3. **Set Parameters**: Adjust electrolyzer power, consumption, and service ratio
+    4. **Choose Prices**: Select single or multiple target prices for analysis
+    5. **Run Simulation**: Click the "Run Simulation" button to start the analysis
+    6. **View Results**: Charts and tables will be displayed below
+    
+    **Required CSV Columns**: The uploaded file should contain at least an 'Annee' (year) column and price data.
+    """)

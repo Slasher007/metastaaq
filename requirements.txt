@@ -5,4 +5,5 @@ entsoe-py
 matplotlib
 seaborn
 numpy
-beautifulsoup4 
+beautifulsoup4
+streamlit 
