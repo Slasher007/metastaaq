@@ -292,9 +292,9 @@ st.sidebar.metric("CH₄ Flow Rate", f"{ch4_flowrate} Nm³/h")
 st.sidebar.metric("Avg Service Ratio", f"{avg_service_ratio:.1%}")
 
 # Show monthly CH4 production summary
-total_monthly_ch4 = sum(monthly_ch4_production.values())
-avg_daily_ch4 = total_monthly_ch4 / 365
-st.sidebar.metric("Avg CH₄ Production", f"{avg_daily_ch4:.1f} kg/day")
+total_yearly_ch4_kg = sum(monthly_ch4_production.values())
+total_yearly_ch4_tonnes = total_yearly_ch4_kg / 1000
+st.sidebar.metric("Yearly CH₄ Production", f"{total_yearly_ch4_tonnes:,.0f} Tonnes")
 
 # Add expandable section for monthly details
 with st.sidebar.expander("📅 Monthly Details"):
