@@ -162,13 +162,40 @@ ch4_flowrate = round(h2_flowrate / stoechio_H2_CH4)
 ch4_density = 0.7168  # kg/Nm³ CH₄
 ch4_kg_per_day = ch4_flowrate * 24 * ch4_density
 
+# Calculate LCOE (Levelized Cost of Energy)
+# This will be calculated dynamically based on the energy mix and prices
+def calculate_lcoe(pv_energy_mwh, spot_energy_dict, ppa_energy_dict, pv_price, spot_price, ppa_price):
+    """Calculate the Levelized Cost of Energy based on energy mix and prices"""
+    total_cost = 0
+    total_energy = 0
+    
+    for month in pv_energy_mwh.keys():
+        # Get energy amounts for each source
+        pv_energy = pv_energy_mwh[month]
+        spot_energy = spot_energy_dict.get(month, 0)
+        ppa_energy = ppa_energy_dict.get(month, 0)
+        
+        # Calculate costs
+        pv_cost = pv_energy * pv_price
+        spot_cost = spot_energy * spot_price
+        ppa_cost = ppa_energy * ppa_price
+        
+        # Add to totals
+        total_cost += pv_cost + spot_cost + ppa_cost
+        total_energy += pv_energy + spot_energy + ppa_energy
+    
+    return total_cost / total_energy if total_energy > 0 else 0
+
 # Display calculated parameters
 st.sidebar.markdown("#### 📊 Calculated Parameters")
 st.sidebar.metric("H₂ Flow Rate", f"{h2_flowrate} Nm³/h")
 st.sidebar.metric("CH₄ Flow Rate", f"{ch4_flowrate} Nm³/h")
 st.sidebar.metric("CH₄ Production", f"{ch4_kg_per_day:.1f} kg/day")
-st.sidebar.metric("PV Price", f"{pv_price} €/MWh")
-st.sidebar.metric("PPA Price", f"{ppa_price} €/MWh")
+
+# LCOE placeholder (will be calculated after simulation)
+if 'lcoe_placeholder' not in st.session_state:
+    st.session_state.lcoe_placeholder = "Run simulation to calculate"
+st.sidebar.metric("LCOE", st.session_state.lcoe_placeholder)
 
 # Main content area
 if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
@@ -286,6 +313,14 @@ if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
                     month_order = list(calendar.month_name)[1:]
                     df_plot_data = df_plot_data.reindex(month_order)
                     
+                    # Calculate LCOE for this target price
+                    pv_energy_dict = df_plot_data['PV'].to_dict()
+                    spot_energy_dict = df_plot_data['Spot'].to_dict()
+                    ppa_energy_dict = df_plot_data['PPA'].to_dict()
+                    
+                    lcoe = calculate_lcoe(pv_energy_dict, spot_energy_dict, ppa_energy_dict, 
+                                        pv_price, target_price, ppa_price)
+                    
                     fig2, ax3 = plt.subplots(figsize=(12, 6))
                     df_plot_data[['PV', 'Spot', 'PPA']].plot(
                         kind='bar', stacked=True, ax=ax3, color=['blue', 'green', 'red']
@@ -332,13 +367,18 @@ if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
                     plt.tight_layout()
                     st.pyplot(fig2)
                     
+                    # Display LCOE
+                    st.metric(f"**LCOE (Levelized Cost of Energy) for {target_price}€/MWh spot price:**", 
+                             f"{lcoe:.2f} €/MWh")
+                    
                     # Store results
                     all_results.append({
                         'target_price': target_price,
                         'df_result': df_result,
                         'df_power_consumption': df_power_consumption,
                         'monthly_avg_hours': df_result.mean().mean(),
-                        'monthly_avg_power': df_power_consumption.mean().mean()
+                        'monthly_avg_power': df_power_consumption.mean().mean(),
+                        'lcoe': lcoe
                     })
                     
                     st.success(f"✅ Completed analysis for {target_price} €/MWh")
@@ -347,6 +387,13 @@ if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
                         st.markdown("---")
                 
                 st.success(f"🎉 Simulation completed for {len(target_prices)} price point(s)!")
+                
+                # Update LCOE in sidebar (average of all target prices if multiple)
+                if len(all_results) == 1:
+                    st.session_state.lcoe_placeholder = f"{all_results[0]['lcoe']:.2f} €/MWh"
+                else:
+                    avg_lcoe = sum(r['lcoe'] for r in all_results) / len(all_results)
+                    st.session_state.lcoe_placeholder = f"{avg_lcoe:.2f} €/MWh (avg)"
                 
                 # Add comparison summary if multiple prices
                 if len(all_results) > 1:
@@ -358,7 +405,8 @@ if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
                         comparison_data.append({
                             'Target Spot Price (€/MWh)': result['target_price'],
                             'Avg Monthly Hours': f"{result['monthly_avg_hours']:.1f}",
-                            'Avg Monthly Power (MWh)': f"{result['monthly_avg_power']:.1f}"
+                            'Avg Monthly Power (MWh)': f"{result['monthly_avg_power']:.1f}",
+                            'LCOE (€/MWh)': f"{result['lcoe']:.2f}"
                         })
                     
                     comparison_df = pd.DataFrame(comparison_data)
