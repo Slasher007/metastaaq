@@ -4,4 +4,5 @@ pvlib
 entsoe-py
 matplotlib
 seaborn
-numpy 
+numpy
+beautifulsoup4 
