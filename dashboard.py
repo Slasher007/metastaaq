@@ -454,19 +454,29 @@ if run_simulation:
                     # PV Production Chart Section
                     st.write("**☀️ Monthly PV Production (Meaux Location):**")
                     try:
-                        st.image("monthly_pv_meaux.png", caption="Monthly PV Energy Production", use_container_width=True)
+                        # Create 2x2 grid layout for the images
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.image("meaux_maps_location.png", caption="Meaux Location Map", use_container_width=True)
+                            st.image("meaux_simulation_output.png", caption="Simulation Output", use_container_width=True)
+                        
+                        with col2:
+                            st.image("meaux_pv_config.png", caption="PV Configuration", use_container_width=True)
+                            st.image("monthly_pv_meaux.png", caption="Monthly PV Energy Production", use_container_width=True)
+                        
                         st.info("📍 **PV Installation with tracking system**: Analysis based on 1 hectare solar panel surface area in Meaux. Data source: PVGIS (Photovoltaic Geographical Information System)")
-                    except FileNotFoundError:
-                        st.warning("⚠️ PV production chart 'monthly_pv_meaux.png' not found")
+                    except FileNotFoundError as e:
+                        st.warning(f"⚠️ One or more PV images not found: {str(e)}")
                     
                     st.write("**🔋 Monthly Energy Coverage:**")
                     
                     # Chart 2: Energy Coverage (Full Width)
                     pv_energy_kwh = {
-                        "January": 41329.5, "February": 62809.8, "March": 100499.8,
-                        "April": 128700.4, "May": 132130.6, "June": 133177.3,
-                        "July": 136106.0, "August": 127150.4, "September": 112236.2,
-                        "October": 79940.3, "November": 48793.6, "December": 40402.6
+                        "January": 53458.33, "February": 80213.5, "March": 130815.4,
+                        "April": 173641.0, "May": 180419.5, "June":187157.5 ,
+                        "July": 191786.5, "August": 171279.3, "September": 148726.1,
+                        "October": 102391.7, "November": 62860.4, "December": 55020.23
                     }
                     pv_energy_mwh = {month: kwh / 1000 for month, kwh in pv_energy_kwh.items()}
                     
