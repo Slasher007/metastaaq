@@ -402,7 +402,7 @@ if run_simulation:
                     
                     # Display results table
                     st.write("**📊 Available Hours per Month:**")
-                    st.dataframe(df_result, use_container_width=True)
+                    st.dataframe(df_result, width='stretch')
                     
                     # Create and display charts using full width
                     st.write("**📈 Available Hours Chart:**")
@@ -458,12 +458,12 @@ if run_simulation:
                         col1, col2 = st.columns(2)
                         
                         with col1:
-                            st.image("meaux_maps_location.png", caption="Meaux Location Map", use_container_width=True)
-                            st.image("meaux_simulation_output.png", caption="Simulation Output", use_container_width=True)
+                            st.image("meaux_maps_location.png", caption="Meaux Location Map", width='stretch')
+                            st.image("meaux_simulation_output.png", caption="Simulation Output", width='stretch')
                         
                         with col2:
-                            st.image("meaux_pv_config.png", caption="PV Configuration", use_container_width=True)
-                            st.image("monthly_pv_meaux.png", caption="Monthly PV Energy Production", use_container_width=True)
+                            st.image("meaux_pv_config.png", caption="PV Configuration", width='stretch')
+                            st.image("monthly_pv_meaux.png", caption="Monthly PV Energy Production", width='stretch')
                         
                         st.info("📍 **PV Installation with tracking system**: Analysis based on 1 hectare solar panel surface area in Meaux. Data source: PVGIS (Photovoltaic Geographical Information System)")
                     except FileNotFoundError as e:
@@ -700,7 +700,7 @@ if run_simulation:
                     
                     styled_df = breakdown_df.style.apply(highlight_yearly_row, axis=1)
                     
-                    st.dataframe(styled_df, use_container_width=True)
+                    st.dataframe(styled_df, width='stretch')
                     
                     # Calculate and display cost per KG of CH4 produced
                     total_yearly_ch4_kg = sum(monthly_ch4_production.values())
@@ -744,7 +744,7 @@ if run_simulation:
                         })
                     
                     comparison_df = pd.DataFrame(comparison_data)
-                    st.dataframe(comparison_df, use_container_width=True)
+                    st.dataframe(comparison_df, width='stretch')
                     
                     # Price comparison chart
                     fig_comp, (ax_comp1, ax_comp2) = plt.subplots(1, 2, figsize=(12, 5))
@@ -958,7 +958,7 @@ if run_simulation:
                     }
                     
                     comprehensive_df = pd.DataFrame(optimal_combination)
-                    st.dataframe(comprehensive_df, use_container_width=True)
+                    st.dataframe(comprehensive_df, width='stretch')
                 else:
                     st.warning("⚠️ No energy data available for 3D analysis. Please check the simulation parameters.")
                 
