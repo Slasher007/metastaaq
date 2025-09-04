@@ -702,6 +702,14 @@ if run_simulation:
                     
                     st.dataframe(styled_df, use_container_width=True)
                     
+                    # Calculate and display cost per KG of CH4 produced
+                    total_yearly_ch4_kg = sum(monthly_ch4_production.values())
+                    cost_per_kg_ch4 = total_cost_year / total_yearly_ch4_kg if total_yearly_ch4_kg > 0 else 0
+                    
+                    # Display cost per KG CH4 alongside LCOE
+                    st.metric(f"**Energy Cost per KG CH₄ for {target_price}€/MWh spot price:**", 
+                             f"{cost_per_kg_ch4:.2f} €/kg CH₄")
+                    
                     # Store results
                     all_results.append({
                         'target_price': target_price,
