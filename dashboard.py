@@ -985,7 +985,6 @@ with st.expander("ℹ️ How to use this dashboard"):
     5. **Manual Refresh**: Use the "Manual Refresh" button if needed
     6. **View Results**: Charts and tables are displayed below the parameters
     
-    **✨ New Feature**: The simulation now runs automatically whenever you change a parameter - no need to click "Run Simulation" anymore!
     
     **Data Source**: The dashboard uses pre-loaded spot price data for France (2021-2025).
     """)
