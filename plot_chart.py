@@ -48,14 +48,14 @@ def plot_chart(df_result, target_price, title, power, y_label, df_power_diff=Non
     # ---------------------
     # First Right Y-axis: Power Consumption
     # ---------------------
-    ax2 = ax1.twinx()
-    max_power_consumption = power * 24  # MWh/day
-    power_ticks = [max_power_consumption * i / 5 for i in range(6)]  # 6 divisions
-    ax2.set_ylabel('Power Consumption (MWh/day)', color='blue')
-    ax2.set_ylim(0, max_power_consumption)
-    ax2.set_yticks(power_ticks)
-    ax2.tick_params(axis='y', labelcolor='blue')
-    ax2.grid(False)
+    #ax2 = ax1.twinx()
+    #max_power_consumption = power * 24  # MWh/day
+    #power_ticks = [max_power_consumption * i / 5 for i in range(6)]  # 6 divisions
+    #ax2.set_ylabel('Power Consumption (MWh/day)', color='blue')
+    #ax2.set_ylim(0, max_power_consumption)
+    #ax2.set_yticks(power_ticks)
+    #ax2.tick_params(axis='y', labelcolor='blue')
+    #ax2.grid(False)
 
     # ---------------------
     # Third Y-axis: CH₄ Production

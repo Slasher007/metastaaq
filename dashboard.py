@@ -442,11 +442,11 @@ if run_simulation:
                     ax1.legend(loc='upper left')
                     
                     # Add second y-axis for power consumption
-                    ax2 = ax1.twinx()
-                    max_power_consumption = electrolyser_power * 24
-                    ax2.set_ylabel('Power Consumption (MWh/day)', color='blue')
-                    ax2.set_ylim(0, max_power_consumption)
-                    ax2.tick_params(axis='y', labelcolor='blue')
+                    #ax2 = ax1.twinx()
+                    #max_power_consumption = electrolyser_power * 24
+                    #ax2.set_ylabel('Power Consumption (MWh/day)', color='blue')
+                    #ax2.set_ylim(0, max_power_consumption)
+                    #ax2.tick_params(axis='y', labelcolor='blue')
                     
                     plt.tight_layout()
                     st.pyplot(fig1)
