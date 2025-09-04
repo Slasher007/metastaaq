@@ -46,10 +46,14 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Title
 st.markdown('<p class="main-header">⚡ MetaSTAAQ LCOE Simulation Dashboard</p>', unsafe_allow_html=True)
 
-# Sidebar for parameters
+# Sidebar with logo and parameters
+try:
+    st.sidebar.image("STAAQ_HD.jpg", width=180)
+except FileNotFoundError:
+    st.sidebar.warning("⚠️ Logo file 'STAAQ_HD.jpg' not found")
+
 st.sidebar.markdown("### 🔧 Simulation Parameters")
 
 # Load default data file
@@ -446,6 +450,14 @@ if run_simulation:
                     
                     plt.tight_layout()
                     st.pyplot(fig1)
+                    
+                    # PV Production Chart Section
+                    st.write("**☀️ Monthly PV Production (Meaux Location):**")
+                    try:
+                        st.image("monthly_pv_meaux.png", caption="Monthly PV Energy Production", use_container_width=True)
+                        st.info("📍 **PV Installation with tracking system**: Analysis based on 1 hectare solar panel surface area in Meaux. Data source: PVGIS (Photovoltaic Geographical Information System)")
+                    except FileNotFoundError:
+                        st.warning("⚠️ PV production chart 'monthly_pv_meaux.png' not found")
                     
                     st.write("**🔋 Monthly Energy Coverage:**")
                     
@@ -950,11 +962,14 @@ else:
 # Footer
 st.markdown("---")
 st.markdown(
-    """
+    f"""
     <div style='text-align: center; color: #666;'>
         <p>MetaSTAAQ LCOE Simulation Dashboard | 
         Built with Streamlit | 
         Data-driven energy analysis</p>
+        <p style='margin-top: 10px; font-size: 14px;'>
+        © STAAQ Technology All Rights Reserved {pd.Timestamp.now().year}
+        </p>
     </div>
     """,
     unsafe_allow_html=True
