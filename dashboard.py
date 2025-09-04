@@ -437,7 +437,7 @@ if run_simulation:
                     
                     ax1.set_xlabel('Month')
                     ax1.set_ylabel('Available Hours')
-                    ax1.set_title(f'Available Hours - {target_price}€/MWh\n(Service ratios: {", ".join([f"{month[:3]}:{monthly_service_ratios[month]:.0%}" for month in monthly_service_ratios])})')
+                    ax1.set_title(f'Spot Available Hours - {target_price}€/MWh\n(Service ratios: {", ".join([f"{month[:3]}:{monthly_service_ratios[month]:.0%}" for month in monthly_service_ratios])})')
                     ax1.tick_params(axis='x', rotation=45)
                     ax1.legend(loc='upper left')
                     
@@ -543,7 +543,7 @@ if run_simulation:
                                 ax3.text(i, ppa_mid, f'{ppa_pct:.1f}%', 
                                         ha='center', va='center', color='white', fontweight='bold', fontsize=9)
                     
-                    ax3.set_title(f'Monthly Energy Coverage - {target_price}€/MWh')
+                    ax3.set_title(f'Monthly Energy Coverage')
                     ax3.set_xlabel('Month')
                     ax3.set_ylabel('Energy (MWh)')
                     ax3.tick_params(axis='x', rotation=45)
@@ -593,7 +593,7 @@ if run_simulation:
                             autotext.set_color('white')
                             autotext.set_fontweight('bold')
                         
-                        ax4.set_title(f'Energy Coverage Distribution - {target_price}€/MWh', 
+                        ax4.set_title(f'Energy Coverage Distribution', 
                                      fontsize=14, fontweight='bold', pad=20)
                         
                         # Add legend with energy values
