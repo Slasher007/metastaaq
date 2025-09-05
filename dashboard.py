@@ -590,29 +590,47 @@ if run_simulation:
                             filtered_colors.append(pie_colors[i])
                     
                     if filtered_data:  # Only create pie chart if there's data
-                        fig3, ax4 = plt.subplots(figsize=(4, 3))
+                        fig3, ax4 = plt.subplots(figsize=(6, 4))
                         
-                        # Create pie chart with percentages
+                        # Calculate percentages
+                        total_energy = sum(filtered_data)
+                        percentages = [value/total_energy*100 for value in filtered_data]
+                        
+                        # Create pie chart with better label positioning
                         wedges, texts, autotexts = ax4.pie(
                             filtered_data, 
-                            labels=filtered_labels, 
+                            labels=filtered_labels,
                             colors=filtered_colors,
-                            autopct='%1.1f%%',
+                            autopct='%1.1f%%',  # Show all percentages
                             startangle=90,
-                            textprops={'fontsize': 12, 'fontweight': 'bold'}
+                            pctdistance=0.85,  # Distance of percentage labels from center
+                            labeldistance=1.1,  # Distance of labels from center
+                            textprops={'fontsize': 10, 'fontweight': 'bold'}
                         )
                         
-                        # Enhance the appearance
+                        # Style the percentage labels
                         for autotext in autotexts:
                             autotext.set_color('white')
                             autotext.set_fontweight('bold')
+                            autotext.set_bbox(dict(boxstyle='round,pad=0.2', facecolor='black', alpha=0.7))
+                        
+                        # Style the labels
+                        for i, (text, value) in enumerate(zip(texts, filtered_data)):
+                            text.set_fontweight('bold')
+                            text.set_fontsize(11)
+                            # Add energy value to the label
+                            original_text = text.get_text()
+                            text.set_text(f'{original_text}\n({value:.1f} MWh)')
+                            text.set_bbox(dict(boxstyle='round,pad=0.3', 
+                                             facecolor='white', 
+                                             edgecolor=filtered_colors[i], 
+                                             alpha=0.9))
                         
                         ax4.set_title(f'Energy Coverage Distribution', 
                                      fontsize=14, fontweight='bold', pad=20)
                         
-                        # Add legend with energy values
-                        legend_labels = [f'{label}: {value:.1f} MWh' for label, value in zip(filtered_labels, filtered_data)]
-                        ax4.legend(wedges, legend_labels, loc="center left", bbox_to_anchor=(1, 0, 0.5, 1))
+                        # Equal aspect ratio ensures that pie is drawn as a circle
+                        ax4.axis('equal')
                         
                         plt.tight_layout()
                         st.pyplot(fig3)
