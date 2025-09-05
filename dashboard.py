@@ -514,13 +514,33 @@ if run_simulation:
                     month_order = list(calendar.month_name)[1:]
                     df_plot_data = df_plot_data.reindex(month_order)
                     
-                    # Calculate LCOE for this target price
+                    # Calculate weighted average spot price from extended_info
+                    def calculate_weighted_avg_spot_price(extended_info, df_result):
+                        """Calculate weighted average spot price based on actual hours and prices"""
+                        total_hours = 0
+                        total_cost = 0
+                        
+                        for year_str in extended_info:
+                            for month in extended_info[year_str]:
+                                info = extended_info[year_str][month]
+                                hours = info['total_hours'] if info['total_hours'] is not None else 0
+                                avg_price = info['actual_avg_price']
+                                
+                                if hours > 0:
+                                    total_hours += hours
+                                    total_cost += hours * avg_price
+                        
+                        return total_cost / total_hours if total_hours > 0 else target_price
+                    
+                    actual_spot_price = calculate_weighted_avg_spot_price(extended_info, df_result)
+                    
+                    # Calculate LCOE using actual weighted average spot price
                     pv_energy_dict = df_plot_data['PV'].to_dict()
                     spot_energy_dict = df_plot_data['Spot'].to_dict()
                     ppa_energy_dict = df_plot_data['PPA'].to_dict()
                     
                     lcoe = calculate_lcoe(pv_energy_dict, spot_energy_dict, ppa_energy_dict, 
-                                        pv_price, target_price, ppa_price)
+                                        pv_price, actual_spot_price, ppa_price)
                     
                     fig2, ax3 = plt.subplots(figsize=(12, 6))
                     df_plot_data[['PV', 'Spot', 'PPA']].plot(
@@ -620,8 +640,19 @@ if run_simulation:
                         plt.tight_layout()
                         st.pyplot(fig3)
                     
+                    # Display pricing information
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("**Target Average Price**", f"{target_price:.0f} €/MWh")
+                    with col2:
+                        st.metric("**Actual Average Price**", f"{actual_spot_price:.2f} €/MWh")
+                    with col3:
+                        price_diff = actual_spot_price - target_price
+                        st.metric("**Price Difference**", f"{price_diff:.2f} €/MWh", 
+                                 delta=f"{price_diff:.2f} €/MWh")
+                    
                     # Display LCOE
-                    st.metric(f"**LCOE (Levelized Cost of Energy) for {target_price}€/MWh average spot price:**", 
+                    st.metric(f"**LCOE (Levelized Cost of Energy) for {actual_spot_price:.2f}€/MWh actual average spot price:**", 
                              f"{lcoe:.2f} €/MWh")
                     
                     # Create detailed monthly breakdown table
@@ -634,14 +665,21 @@ if run_simulation:
                         ppa_energy = df_plot_data.loc[month, 'PPA']
                         total_energy = pv_energy + spot_energy + ppa_energy
                         
+                        # Get actual average price for this month from extended_info
+                        month_spot_price = target_price  # fallback
+                        for year_str in extended_info:
+                            if month in extended_info[year_str]:
+                                month_spot_price = extended_info[year_str][month]['actual_avg_price']
+                                break  # Use first year found (or could average across years)
+                        
                         # Calculate coverage ratios
                         pv_ratio = (pv_energy / total_energy * 100) if total_energy > 0 else 0
                         spot_ratio = (spot_energy / total_energy * 100) if total_energy > 0 else 0
                         ppa_ratio = (ppa_energy / total_energy * 100) if total_energy > 0 else 0
                         
-                        # Calculate costs
+                        # Calculate costs using actual monthly spot price
                         pv_cost = pv_energy * pv_price
-                        spot_cost = spot_energy * target_price
+                        spot_cost = spot_energy * month_spot_price
                         ppa_cost = ppa_energy * ppa_price
                         total_cost = pv_cost + spot_cost + ppa_cost
                         
@@ -714,12 +752,13 @@ if run_simulation:
                     cost_per_kg_ch4 = total_cost_year / total_yearly_ch4_kg if total_yearly_ch4_kg > 0 else 0
                     
                     # Display cost per KG CH4 alongside LCOE
-                    st.metric(f"**Energy Cost per KG CH₄ for {target_price}€/MWh average spot price:**", 
+                    st.metric(f"**Energy Cost per KG CH₄ for {actual_spot_price:.2f}€/MWh actual average spot price:**", 
                              f"{cost_per_kg_ch4:.2f} €/kg CH₄")
                     
                     # Store results
                     all_results.append({
                         'target_price': target_price,
+                        'actual_spot_price': actual_spot_price,
                         'df_result': df_result,
                         'df_power_consumption': df_power_consumption,
                         'monthly_avg_hours': df_result.mean().mean(),
@@ -744,7 +783,8 @@ if run_simulation:
                     comparison_data = []
                     for result in all_results:
                         comparison_data.append({
-                            'Average Target Spot Price (€/MWh)': result['target_price'],
+                            'Target Spot Price (€/MWh)': result['target_price'],
+                            'Actual Avg Spot Price (€/MWh)': f"{result['actual_spot_price']:.2f}",
                             'Avg Monthly Hours': f"{result['monthly_avg_hours']:.1f}",
                             'Avg Monthly Power (MWh)': f"{result['monthly_avg_power']:.1f}",
                             'LCOE (€/MWh)': f"{result['lcoe']:.2f}"
