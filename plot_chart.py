@@ -4,6 +4,7 @@ Function to plot charts with multiple y-axes for different metrics.
 """
 
 import matplotlib.pyplot as plt
+import pandas as pd
 
 
 def plot_chart(df_result, target_price, title, power, y_label, df_power_diff=None, ch4_kg_per_day=None):
@@ -26,11 +27,81 @@ def plot_chart(df_result, target_price, title, power, y_label, df_power_diff=Non
 
     # Create the main axis and bar plot
     fig, ax1 = plt.subplots(figsize=(12, 6))
-    df_plot.plot(kind='bar', ax=ax1, legend=True)
+    
+    # Handle extended hours visualization if extended_info is provided
+    if extended_info is not None:
+        # Create separate dataframes for base and extended hours
+        base_hours_data = pd.DataFrame(index=df_plot.index, columns=df_plot.columns, dtype=float)
+        extended_hours_data = pd.DataFrame(index=df_plot.index, columns=df_plot.columns, dtype=float)
+        
+        for year in df_plot.columns:
+            for month in df_plot.index:
+                if str(year) in extended_info and month in extended_info[str(year)]:
+                    info = extended_info[str(year)][month]
+                    base_hours_data.loc[month, year] = info['base_hours']
+                    extended_hours_data.loc[month, year] = info['extended_hours']
+                else:
+                    base_hours_data.loc[month, year] = df_plot.loc[month, year] if pd.notna(df_plot.loc[month, year]) else 0
+                    extended_hours_data.loc[month, year] = 0
+        
+        # Fill NaN values with 0
+        base_hours_data = base_hours_data.fillna(0)
+        extended_hours_data = extended_hours_data.fillna(0)
+        
+        # Create manual bar chart to properly handle stacked visualization
+        x_pos = range(len(df_plot.index))
+        width = 0.8 / len(df_plot.columns)  # Width of bars
+        
+        # Colors for different years
+        colors = plt.cm.tab10(range(len(df_plot.columns)))
+        
+        # Plot bars for each year
+        for i, year in enumerate(df_plot.columns):
+            x_offset = [x + width * (i - len(df_plot.columns)/2 + 0.5) for x in x_pos]
+            
+            # Base hours
+            base_values = base_hours_data[year].values
+            ax1.bar(x_offset, base_values, width, 
+                   label=f'{year}', color=colors[i], alpha=0.8)
+            
+            # Extended hours (stacked on top)
+            extended_values = extended_hours_data[year].values
+            ax1.bar(x_offset, extended_values, width, 
+                   bottom=base_values, color='gray', alpha=0.6)
+            
+            # Add text annotations on bars
+            for j, (x, base_val, ext_val) in enumerate(zip(x_offset, base_values, extended_values)):
+                # Annotate base hours (center of base bar)
+                if base_val > 0:
+                    ax1.text(x, base_val/2, f'{int(base_val)}', 
+                            ha='center', va='center', fontsize=8, fontweight='bold', 
+                            color='white')
+                
+                # Annotate extended hours (center of extended bar)
+                if ext_val > 0:
+                    ax1.text(x, base_val + ext_val/2, f'{int(ext_val)}', 
+                            ha='center', va='center', fontsize=8, fontweight='bold', 
+                            color='white')
+        
+        # Set x-axis labels
+        ax1.set_xticks(x_pos)
+        ax1.set_xticklabels(df_plot.index)
+        
+        # Add legend entry for extended hours using Rectangle patch for better alpha rendering
+        from matplotlib.patches import Rectangle
+        extended_patch = Rectangle((0, 0), 1, 1, facecolor='gray', alpha=0.6, label='Extended Hours (avg < PPA)')
+        
+        # Get current handles and labels, then add the extended hours patch
+        handles, labels = ax1.get_legend_handles_labels()
+        handles.append(extended_patch)
+        labels.append('Extended Hours (avg < PPA)')
+    else:
+        # Original plotting without extended hours
+        df_plot.plot(kind='bar', ax=ax1, legend=True)
 
     # Plot monthly average line on ax1
     ax1.plot(
-        monthly_avg.index,
+        range(len(monthly_avg)),
         monthly_avg.values,
         color='black',
         linestyle='--',
@@ -41,9 +112,14 @@ def plot_chart(df_result, target_price, title, power, y_label, df_power_diff=Non
     # Labels and formatting for the primary y-axis (Available Hours)
     ax1.set_xlabel('Month')
     ax1.set_ylabel(y_label)
-    ax1.set_title(f"{title} - {power} MW")
+    if extended_info is not None:
+        ax1.set_title(f"{title} - {power} MW (Extended to PPA {ppa_price}€/MWh)")
+        # Use custom legend with extended hours patch
+        ax1.legend(handles=handles, labels=labels, loc='upper right')
+    else:
+        ax1.set_title(f"{title} - {power} MW")
+        ax1.legend(loc='upper right')
     ax1.tick_params(axis='x', rotation=45)
-    ax1.legend(loc='upper left')
 
     # ---------------------
     # First Right Y-axis: Power Consumption

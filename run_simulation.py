@@ -16,7 +16,7 @@ from plot_chart import plot_chart
 from plot_table_as_image import plot_table_as_image
 
 
-def run_simulation(data_content, target_price, service_ratio, electrolyser_power, ch4_kg_per_day):
+def run_simulation(data_content, target_price, service_ratio, electrolyser_power, ch4_kg_per_day, ppa_price=80):
     """
     Run the complete simulation for a given target price.
     
@@ -26,11 +26,12 @@ def run_simulation(data_content, target_price, service_ratio, electrolyser_power
         service_ratio (float): Service ratio (0-1)
         electrolyser_power (float): Power rating in MW
         ch4_kg_per_day (float): CH4 production rate in kg/day
+        ppa_price (float): PPA price in €/MWh, default is 80
     """
     # Get expected monthly Hours
     expected_monthly_hours = get_required_hours_per_month(service_ratio)
     expected_monthly_power = get_expected_monthly_power_cons(electrolyser_power, expected_monthly_hours)
-    result = calculate_max_hours(data_content, target_price)
+    result, extended_info = calculate_max_hours(data_content, target_price, ppa_price, return_extended_info=True)
     df_result = display_table(result)
 
     # Calculate Available Hours difference
@@ -48,7 +49,7 @@ def run_simulation(data_content, target_price, service_ratio, electrolyser_power
 
     # Display chart of Available Hours and Power Coverage with left dual y-axis
     title = f'Maximum Available Hours {service_ratio*100}% service ratio and average target price {target_price}€/MWH'
-    plot_chart(df_result, target_price, title, electrolyser_power, 'Available Hours', df_power_diff=df_power_diff, ch4_kg_per_day=ch4_kg_per_day)
+    plot_chart(df_result, target_price, title, electrolyser_power, 'Available Hours', df_power_diff=df_power_diff, ch4_kg_per_day=ch4_kg_per_day, extended_info=extended_info, ppa_price=ppa_price)
 
     # Monthly PV energy outputs in kWh - Define inside or pass as argument if varies
     pv_energy_kwh = {

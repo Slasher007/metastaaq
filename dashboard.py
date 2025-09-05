@@ -165,52 +165,29 @@ avg_service_ratio = sum(monthly_service_ratios.values()) / len(monthly_service_r
 
 # Price parameters
 st.sidebar.markdown("#### 💰 Price Parameters")
-target_price_mode = st.sidebar.radio(
-    "Spot Price Selection Mode",
-    options=["Single Price", "Multiple Prices"],
-    help="Choose to analyze single or multiple target spot prices"
-)
-
-if target_price_mode == "Single Price":
-    target_prices = [st.sidebar.slider(
-        "Target Spot Price (€/MWh)",
-        min_value=5,
-        max_value=50,
-        value=15,
-        step=1
-    )]
-else:
-    price_range = st.sidebar.slider(
-        "Spot Price Range (€/MWh)",
-        min_value=5,
-        max_value=50,
-        value=(10, 30),
-        step=5
-    )
-    price_step = st.sidebar.slider(
-        "Spot Price Step (€/MWh)",
-        min_value=1,
-        max_value=10,
-        value=5,
-        step=1
-    )
-    target_prices = list(range(price_range[0], price_range[1] + 1, price_step))
+target_prices = [st.sidebar.slider(
+    "Average Target Spot Price (€/MWh)",
+    min_value=5,
+    max_value=50,
+    value=30,
+    step=1
+)]
 
 # PV and PPA Price Parameters
 pv_price = st.sidebar.slider(
     "PV Price (€/MWh)",
     min_value=0,
     max_value=100,
-    value=50,
+    value=60,
     step=5,
     help="Price of photovoltaic energy"
 )
 
 ppa_price = st.sidebar.slider(
     "PPA Price (€/MWh)",
-    min_value=50,
+    min_value=15,
     max_value=200,
-    value=80,
+    value=70,
     step=5,
     help="Power Purchase Agreement price"
 )
@@ -330,12 +307,12 @@ if run_simulation:
                 all_results = []
                 
                 for i, target_price in enumerate(target_prices):
-                    st.write(f"**Analyzing target spot price: {target_price} €/MWh**")
+                    st.write(f"**Analyzing average target spot price: {target_price} €/MWh (Extended to PPA {ppa_price}€/MWh)**")
                     
                     # Run simulation components using monthly service ratios
                     expected_monthly_hours = get_required_hours_per_month_custom(monthly_service_ratios)
                     expected_monthly_power = get_expected_monthly_power_cons_custom(electrolyser_power, expected_monthly_hours)
-                    result = calculate_max_hours(data_content, target_price)
+                    result, extended_info = calculate_max_hours(data_content, target_price, ppa_price, return_extended_info=True)
                     df_result = display_table(result)
                     
                     # Calculate differences
@@ -350,12 +327,67 @@ if run_simulation:
                     # Create and display charts using full width
                     st.write("**📈 Available Hours Chart:**")
                     
-                    # Chart 1: Available Hours (Full Width)
+                    # Chart 1: Available Hours with Extended Hours Visualization (Full Width)
                     fig1, ax1 = plt.subplots(figsize=(12, 6))
                     df_plot = df_result.T
                     monthly_avg = df_plot.mean(axis=1)
                     
-                    df_plot.plot(kind='bar', ax=ax1, legend=True)
+                    # Create separate dataframes for base and extended hours
+                    base_hours_data = pd.DataFrame(index=df_plot.index, columns=df_plot.columns, dtype=float)
+                    extended_hours_data = pd.DataFrame(index=df_plot.index, columns=df_plot.columns, dtype=float)
+                    
+                    for year in df_plot.columns:
+                        for month in df_plot.index:
+                            if str(year) in extended_info and month in extended_info[str(year)]:
+                                info = extended_info[str(year)][month]
+                                base_hours_data.loc[month, year] = info['base_hours']
+                                extended_hours_data.loc[month, year] = info['extended_hours']
+                            else:
+                                base_hours_data.loc[month, year] = df_plot.loc[month, year] if pd.notna(df_plot.loc[month, year]) else 0
+                                extended_hours_data.loc[month, year] = 0
+                    
+                    # Fill NaN values with 0
+                    base_hours_data = base_hours_data.fillna(0)
+                    extended_hours_data = extended_hours_data.fillna(0)
+                    
+                    # Create manual bar chart to properly handle stacked visualization
+                    x_pos = range(len(df_plot.index))
+                    width = 0.8 / len(df_plot.columns)  # Width of bars
+                    
+                    # Colors for different years
+                    colors = plt.cm.tab10(range(len(df_plot.columns)))
+                    
+                    # Plot bars for each year
+                    for i, year in enumerate(df_plot.columns):
+                        x_offset = [x + width * (i - len(df_plot.columns)/2 + 0.5) for x in x_pos]
+                        
+                        # Base hours
+                        base_values = base_hours_data[year].values
+                        ax1.bar(x_offset, base_values, width, 
+                               label=f'{year}', color=colors[i], alpha=0.8)
+                        
+                        # Extended hours (stacked on top)
+                        extended_values = extended_hours_data[year].values
+                        ax1.bar(x_offset, extended_values, width, 
+                               bottom=base_values, color='gray', alpha=0.6)
+                        
+                        # Add text annotations on bars
+                        for j, (x, base_val, ext_val) in enumerate(zip(x_offset, base_values, extended_values)):
+                            # Annotate base hours (center of base bar)
+                            if base_val > 0:
+                                ax1.text(x, base_val/2, f'{int(base_val)}', 
+                                        ha='center', va='center', fontsize=8, fontweight='bold', 
+                                        color='white')
+                            
+                            # Annotate extended hours (center of extended bar)
+                            if ext_val > 0:
+                                ax1.text(x, base_val + ext_val/2, f'{int(ext_val)}', 
+                                        ha='center', va='center', fontsize=8, fontweight='bold', 
+                                        color='white')
+                    
+                    # Set x-axis labels
+                    ax1.set_xticks(x_pos)
+                    ax1.set_xticklabels(df_plot.index)
                     
                     # Plot mean values as prominent points with labels
                     ax1.plot(range(len(monthly_avg)), monthly_avg.values, 
@@ -378,11 +410,20 @@ if run_simulation:
                                            edgecolor='red', 
                                            alpha=0.8))
                     
+                    # Add legend entry for extended hours using Rectangle patch for better alpha rendering
+                    from matplotlib.patches import Rectangle
+                    extended_patch = Rectangle((0, 0), 1, 1, facecolor='gray', alpha=0.6, label='Extended Hours (avg < PPA)')
+                    
+                    # Get current handles and labels, then add the extended hours patch
+                    handles, labels = ax1.get_legend_handles_labels()
+                    handles.append(extended_patch)
+                    labels.append('Extended Hours (avg < PPA)')
+                    
                     ax1.set_xlabel('Month')
                     ax1.set_ylabel('Available Hours')
-                    ax1.set_title(f'Spot Available Hours - {target_price}€/MWh\n(Service ratios: {", ".join([f"{month[:3]}:{monthly_service_ratios[month]:.0%}" for month in monthly_service_ratios])})')
+                    ax1.set_title(f'Spot Available Hours - Average Target Price {target_price}€/MWh (Extended to PPA {ppa_price}€/MWh)\n')
                     ax1.tick_params(axis='x', rotation=45)
-                    ax1.legend(loc='upper left')
+                    ax1.legend(handles=handles, labels=labels, loc='upper right')
                     
                     # Add second y-axis for power consumption
                     #ax2 = ax1.twinx()
@@ -450,13 +491,33 @@ if run_simulation:
                     month_order = list(calendar.month_name)[1:]
                     df_plot_data = df_plot_data.reindex(month_order)
                     
-                    # Calculate LCOE for this target price
+                    # Calculate weighted average spot price from extended_info
+                    def calculate_weighted_avg_spot_price(extended_info, df_result):
+                        """Calculate weighted average spot price based on actual hours and prices"""
+                        total_hours = 0
+                        total_cost = 0
+                        
+                        for year_str in extended_info:
+                            for month in extended_info[year_str]:
+                                info = extended_info[year_str][month]
+                                hours = info['total_hours'] if info['total_hours'] is not None else 0
+                                avg_price = info['actual_avg_price']
+                                
+                                if hours > 0:
+                                    total_hours += hours
+                                    total_cost += hours * avg_price
+                        
+                        return total_cost / total_hours if total_hours > 0 else target_price
+                    
+                    actual_spot_price = calculate_weighted_avg_spot_price(extended_info, df_result)
+                    
+                    # Calculate LCOE using actual weighted average spot price
                     pv_energy_dict = df_plot_data['PV'].to_dict()
                     spot_energy_dict = df_plot_data['Spot'].to_dict()
                     ppa_energy_dict = df_plot_data['PPA'].to_dict()
                     
                     lcoe = calculate_lcoe(pv_energy_dict, spot_energy_dict, ppa_energy_dict, 
-                                        pv_price, target_price, ppa_price)
+                                        pv_price, actual_spot_price, ppa_price)
                     
                     fig2, ax3 = plt.subplots(figsize=(12, 6))
                     df_plot_data[['PV', 'Spot', 'PPA']].plot(
@@ -529,35 +590,64 @@ if run_simulation:
                             filtered_colors.append(pie_colors[i])
                     
                     if filtered_data:  # Only create pie chart if there's data
-                        fig3, ax4 = plt.subplots(figsize=(4, 3))
+                        fig3, ax4 = plt.subplots(figsize=(6, 4))
                         
-                        # Create pie chart with percentages
+                        # Calculate percentages
+                        total_energy = sum(filtered_data)
+                        percentages = [value/total_energy*100 for value in filtered_data]
+                        
+                        # Create pie chart with better label positioning
                         wedges, texts, autotexts = ax4.pie(
                             filtered_data, 
-                            labels=filtered_labels, 
+                            labels=filtered_labels,
                             colors=filtered_colors,
-                            autopct='%1.1f%%',
+                            autopct='%1.1f%%',  # Show all percentages
                             startangle=90,
-                            textprops={'fontsize': 12, 'fontweight': 'bold'}
+                            pctdistance=0.85,  # Distance of percentage labels from center
+                            labeldistance=1.1,  # Distance of labels from center
+                            textprops={'fontsize': 10, 'fontweight': 'bold'}
                         )
                         
-                        # Enhance the appearance
+                        # Style the percentage labels
                         for autotext in autotexts:
                             autotext.set_color('white')
                             autotext.set_fontweight('bold')
+                            autotext.set_bbox(dict(boxstyle='round,pad=0.2', facecolor='black', alpha=0.7))
+                        
+                        # Style the labels
+                        for i, (text, value) in enumerate(zip(texts, filtered_data)):
+                            text.set_fontweight('bold')
+                            text.set_fontsize(11)
+                            # Add energy value to the label
+                            original_text = text.get_text()
+                            text.set_text(f'{original_text}\n({value:.1f} MWh)')
+                            text.set_bbox(dict(boxstyle='round,pad=0.3', 
+                                             facecolor='white', 
+                                             edgecolor=filtered_colors[i], 
+                                             alpha=0.9))
                         
                         ax4.set_title(f'Energy Coverage Distribution', 
                                      fontsize=14, fontweight='bold', pad=20)
                         
-                        # Add legend with energy values
-                        legend_labels = [f'{label}: {value:.1f} MWh' for label, value in zip(filtered_labels, filtered_data)]
-                        ax4.legend(wedges, legend_labels, loc="center left", bbox_to_anchor=(1, 0, 0.5, 1))
+                        # Equal aspect ratio ensures that pie is drawn as a circle
+                        ax4.axis('equal')
                         
                         plt.tight_layout()
                         st.pyplot(fig3)
                     
+                    # Display pricing information
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("**Target Average Spot Price**", f"{target_price:.0f} €/MWh")
+                    with col2:
+                        st.metric("**Actual Average Spot Price**", f"{actual_spot_price:.2f} €/MWh")
+                    with col3:
+                        price_diff = actual_spot_price - target_price
+                        st.metric("**Spot Price Difference**", f"{price_diff:.2f} €/MWh", 
+                                 delta=f"{price_diff:.2f} €/MWh")
+                    
                     # Display LCOE
-                    st.metric(f"**LCOE (Levelized Cost of Energy) for {target_price}€/MWh spot price:**", 
+                    st.metric(f"**LCOE (Levelized Cost of Energy) for {actual_spot_price:.2f}€/MWh actual average spot price:**", 
                              f"{lcoe:.2f} €/MWh")
                     
                     # Create detailed monthly breakdown table
@@ -570,14 +660,21 @@ if run_simulation:
                         ppa_energy = df_plot_data.loc[month, 'PPA']
                         total_energy = pv_energy + spot_energy + ppa_energy
                         
+                        # Get actual average price for this month from extended_info
+                        month_spot_price = target_price  # fallback
+                        for year_str in extended_info:
+                            if month in extended_info[year_str]:
+                                month_spot_price = extended_info[year_str][month]['actual_avg_price']
+                                break  # Use first year found (or could average across years)
+                        
                         # Calculate coverage ratios
                         pv_ratio = (pv_energy / total_energy * 100) if total_energy > 0 else 0
                         spot_ratio = (spot_energy / total_energy * 100) if total_energy > 0 else 0
                         ppa_ratio = (ppa_energy / total_energy * 100) if total_energy > 0 else 0
                         
-                        # Calculate costs
+                        # Calculate costs using actual monthly spot price
                         pv_cost = pv_energy * pv_price
-                        spot_cost = spot_energy * target_price
+                        spot_cost = spot_energy * month_spot_price
                         ppa_cost = ppa_energy * ppa_price
                         total_cost = pv_cost + spot_cost + ppa_cost
                         
@@ -606,7 +703,7 @@ if run_simulation:
                     total_energy_year = total_pv_energy + total_spot_energy + total_ppa_energy
                     
                     total_pv_cost = total_pv_energy * pv_price
-                    total_spot_cost = total_spot_energy * target_price
+                    total_spot_cost = total_spot_energy * actual_spot_price
                     total_ppa_cost = total_ppa_energy * ppa_price
                     total_cost_year = total_pv_cost + total_spot_cost + total_ppa_cost
                     
@@ -650,12 +747,13 @@ if run_simulation:
                     cost_per_kg_ch4 = total_cost_year / total_yearly_ch4_kg if total_yearly_ch4_kg > 0 else 0
                     
                     # Display cost per KG CH4 alongside LCOE
-                    st.metric(f"**Energy Cost per KG CH₄ for {target_price}€/MWh spot price:**", 
+                    st.metric(f"**Energy Cost per KG CH₄ for {actual_spot_price:.2f}€/MWh actual average spot price:**", 
                              f"{cost_per_kg_ch4:.2f} €/kg CH₄")
                     
                     # Store results
                     all_results.append({
                         'target_price': target_price,
+                        'actual_spot_price': actual_spot_price,
                         'df_result': df_result,
                         'df_power_consumption': df_power_consumption,
                         'monthly_avg_hours': df_result.mean().mean(),
@@ -671,45 +769,6 @@ if run_simulation:
 
                 
 
-                
-                # Add comparison summary if multiple prices
-                if len(all_results) > 1:
-                    st.markdown("---")
-                    st.markdown("### 📈 Price Comparison Summary")
-                    
-                    comparison_data = []
-                    for result in all_results:
-                        comparison_data.append({
-                            'Target Spot Price (€/MWh)': result['target_price'],
-                            'Avg Monthly Hours': f"{result['monthly_avg_hours']:.1f}",
-                            'Avg Monthly Power (MWh)': f"{result['monthly_avg_power']:.1f}",
-                            'LCOE (€/MWh)': f"{result['lcoe']:.2f}"
-                        })
-                    
-                    comparison_df = pd.DataFrame(comparison_data)
-                    st.dataframe(comparison_df, width='stretch')
-                    
-                    # Price comparison chart
-                    fig_comp, (ax_comp1, ax_comp2) = plt.subplots(1, 2, figsize=(12, 5))
-                    
-                    prices = [r['target_price'] for r in all_results]
-                    hours = [r['monthly_avg_hours'] for r in all_results]
-                    power = [r['monthly_avg_power'] for r in all_results]
-                    
-                    ax_comp1.plot(prices, hours, 'o-', color='blue', linewidth=2, markersize=8)
-                    ax_comp1.set_xlabel('Target Spot Price (€/MWh)')
-                    ax_comp1.set_ylabel('Average Monthly Hours')
-                    ax_comp1.set_title('Hours vs Price')
-                    ax_comp1.grid(True, alpha=0.3)
-                    
-                    ax_comp2.plot(prices, power, 'o-', color='green', linewidth=2, markersize=8)
-                    ax_comp2.set_xlabel('Target Spot Price (€/MWh)')
-                    ax_comp2.set_ylabel('Average Monthly Power (MWh)')
-                    ax_comp2.set_title('Power vs Price')
-                    ax_comp2.grid(True, alpha=0.3)
-                    
-                    plt.tight_layout()
-                    st.pyplot(fig_comp)
                 
                 # Add comprehensive 3D analysis
                 st.markdown("---")
@@ -747,8 +806,8 @@ if run_simulation:
                                         c=lcoe_samples, cmap='viridis', s=50, alpha=0.7)
                     
                     # Add current point
-                    current_lcoe_3d = (base_pv_energy * pv_price + base_spot_energy * target_prices[0] + base_ppa_energy * ppa_price) / total_energy
-                    ax1.scatter([pv_price], [ppa_price], [target_prices[0]], 
+                    current_lcoe_3d = (base_pv_energy * pv_price + base_spot_energy * actual_spot_price + base_ppa_energy * ppa_price) / total_energy
+                    ax1.scatter([pv_price], [ppa_price], [actual_spot_price], 
                               color='red', s=200, marker='*', label=f'Current: {current_lcoe_3d:.2f}€/MWh')
                     
                     ax1.set_xlabel('PV Price (€/MWh)')
@@ -773,7 +832,7 @@ if run_simulation:
                     for i in range(len(ppa_contour)):
                         for j in range(len(pv_contour)):
                             pv_cost = base_pv_energy * PV_cont[i, j]
-                            spot_cost = base_spot_energy * target_prices[0]  # Fixed spot
+                            spot_cost = base_spot_energy * actual_spot_price  # Fixed spot
                             ppa_cost = base_ppa_energy * PPA_cont[i, j]
                             LCOE_contour[i, j] = (pv_cost + spot_cost + ppa_cost) / total_energy
                     
@@ -786,7 +845,7 @@ if run_simulation:
                     
                     ax2.set_xlabel('PV Price (€/MWh)')
                     ax2.set_ylabel('PPA Price (€/MWh)')
-                    ax2.set_title(f'LCOE Contours: PV vs PPA\n(Spot = {target_prices[0]}€/MWh)', fontweight='bold')
+                    ax2.set_title(f'LCOE Contours: PV vs PPA\n(Spot = {actual_spot_price:.2f}€/MWh)', fontweight='bold')
                     ax2.legend()
                     
                     plt.colorbar(contour, ax=ax2, label='LCOE (€/MWh)')
@@ -821,7 +880,7 @@ if run_simulation:
                     # Current scenario
                     current_pv_norm = pv_price / 100
                     current_ppa_norm = (ppa_price - 50) / 100
-                    current_spot_norm = (target_prices[0] - 5) / 45
+                    current_spot_norm = (actual_spot_price - 5) / 45
                     current_lcoe_norm = (current_lcoe_3d - min(lcoe_samples)) / (max(lcoe_samples) - min(lcoe_samples))
                     
                     ax3.plot([0, 1, 2, 3], [current_pv_norm, current_ppa_norm, current_spot_norm, current_lcoe_norm], 
@@ -842,7 +901,7 @@ if run_simulation:
                     ppa_heat = np.linspace(50, 150, 10)
                     
                     # Use current spot price
-                    spot_fixed = target_prices[0]
+                    spot_fixed = actual_spot_price
                     
                     heat_matrix = np.zeros((len(ppa_heat), len(pv_heat)))
                     for i, ppa_p in enumerate(ppa_heat):
@@ -879,29 +938,6 @@ if run_simulation:
                                 fontsize=16, fontweight='bold', y=0.98)
                     plt.tight_layout()
                     st.pyplot(fig_complete)
-                    
-                    # Add comprehensive insights
-                    st.write("**🔍 Multi-Dimensional Analysis Insights:**")
-                    
-                    # Calculate optimal combinations
-                    min_lcoe_overall = min(lcoe_samples)
-                    max_lcoe_overall = max(lcoe_samples)
-                    min_idx = lcoe_samples.index(min_lcoe_overall)
-                    
-                    optimal_combination = {
-                        'Analysis Type': ['3D Scatter Plot', 'Current Configuration', 'Optimal Found', 'Range Analysis'],
-                        'PV Price (€/MWh)': [f'{np.mean(pv_samples):.1f} (avg)', f'{pv_price:.1f}', 
-                                           f'{pv_samples[min_idx]:.1f}', f'{min(pv_samples):.1f}-{max(pv_samples):.1f}'],
-                        'PPA Price (€/MWh)': [f'{np.mean(ppa_samples):.1f} (avg)', f'{ppa_price:.1f}', 
-                                            f'{ppa_samples[min_idx]:.1f}', f'{min(ppa_samples):.1f}-{max(ppa_samples):.1f}'],
-                        'Spot Price (€/MWh)': [f'{np.mean(spot_samples):.1f} (avg)', f'{target_prices[0]:.1f}', 
-                                             f'{spot_samples[min_idx]:.1f}', f'{min(spot_samples):.1f}-{max(spot_samples):.1f}'],
-                        'LCOE (€/MWh)': [f'{np.mean(lcoe_samples):.2f} (avg)', f'{current_lcoe_3d:.2f}', 
-                                       f'{min_lcoe_overall:.2f}', f'{min_lcoe_overall:.2f}-{max_lcoe_overall:.2f}']
-                    }
-                    
-                    comprehensive_df = pd.DataFrame(optimal_combination)
-                    st.dataframe(comprehensive_df, width='stretch')
                 else:
                     st.warning("⚠️ No energy data available for 3D analysis. Please check the simulation parameters.")
                 
@@ -941,7 +977,7 @@ with st.expander("ℹ️ How to use this dashboard"):
     st.markdown("""
     1. **Select Years**: Choose which years to include in the analysis
     2. **Set Parameters**: Adjust electrolyzer power, consumption, and service ratio
-    3. **Choose Prices**: Select single or multiple target spot prices for analysis
+    3. **Set Target Price**: Adjust the average target spot price for analysis
     4. **Auto-Update**: Results update automatically when you change any parameter!
     5. **Manual Refresh**: Use the "Manual Refresh" button if needed
     6. **View Results**: Charts and tables are displayed below the parameters
