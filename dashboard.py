@@ -11,6 +11,9 @@ from mpl_toolkits.mplot3d import Axes3D
 from calculate_max_hours import calculate_max_hours
 from display_table import display_table
 from calculate_percentage_difference import calculate_percentage_difference
+from get_required_hours_per_month_custom import get_required_hours_per_month_custom
+from get_expected_monthly_power_cons_custom import get_expected_monthly_power_cons_custom
+from calculate_lcoe import calculate_lcoe
 
 # Set page configuration
 st.set_page_config(
@@ -212,44 +215,7 @@ ppa_price = st.sidebar.slider(
     help="Power Purchase Agreement price"
 )
 
-# Create function to calculate monthly required hours with individual service ratios
-def get_required_hours_per_month_custom(monthly_service_ratios: dict) -> dict:
-    """
-    Calculate required hours per month using individual monthly service ratios.
-    
-    Parameters:
-        monthly_service_ratios (dict): Service ratio for each month
-        
-    Returns:
-        dict: Required hours for each month
-    """
-    days_per_month = {
-        "January": 31, "February": 28, "March": 31, "April": 30,
-        "May": 31, "June": 30, "July": 31, "August": 31,
-        "September": 30, "October": 31, "November": 30, "December": 31
-    }
-    
-    return {
-        month: round(days_per_month[month] * 24 * monthly_service_ratios[month], 0)
-        for month in days_per_month.keys()
-    }
 
-# Create function to calculate monthly expected power consumption
-def get_expected_monthly_power_cons_custom(electrolyser_power: float, monthly_required_hours: dict) -> dict:
-    """
-    Calculate expected monthly power consumption using monthly required hours.
-    
-    Parameters:
-        electrolyser_power (float): Electrolyzer power in MW
-        monthly_required_hours (dict): Required hours for each month
-        
-    Returns:
-        dict: Expected power consumption for each month in MWh
-    """
-    return {
-        month: electrolyser_power * hours
-        for month, hours in monthly_required_hours.items()
-    }
 
 # Calculate derived parameters
 h2_flowrate = round((electrolyser_power * 1000) / electrolyser_specific_consumption)
@@ -265,29 +231,6 @@ monthly_ch4_production = {
     for month, ratio in monthly_service_ratios.items()
 }
 
-# Calculate LCOE (Levelized Cost of Energy)
-# This will be calculated dynamically based on the energy mix and prices
-def calculate_lcoe(pv_energy_mwh, spot_energy_dict, ppa_energy_dict, pv_price, spot_price, ppa_price):
-    """Calculate the Levelized Cost of Energy based on energy mix and prices"""
-    total_cost = 0
-    total_energy = 0
-    
-    for month in pv_energy_mwh.keys():
-        # Get energy amounts for each source
-        pv_energy = pv_energy_mwh[month]
-        spot_energy = spot_energy_dict.get(month, 0)
-        ppa_energy = ppa_energy_dict.get(month, 0)
-        
-        # Calculate costs
-        pv_cost = pv_energy * pv_price
-        spot_cost = spot_energy * spot_price
-        ppa_cost = ppa_energy * ppa_price
-        
-        # Add to totals
-        total_cost += pv_cost + spot_cost + ppa_cost
-        total_energy += pv_energy + spot_energy + ppa_energy
-    
-    return total_cost / total_energy if total_energy > 0 else 0
 
 # Display calculated parameters
 st.sidebar.markdown("#### 📊 Calculated Parameters")
