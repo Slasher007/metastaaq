@@ -24,6 +24,9 @@ def calculate_max_hours(df, target_price=15, ppa_price=80, return_extended_info=
         dict: Maximum purchasable hours organized by year and month with string keys (month as full name)
         or tuple: (hours_dict, extended_info_dict) if return_extended_info=True
     """
+    # Create a copy to avoid modifying the original DataFrame
+    df = df.copy()
+    
     # Combine 'Date' and 'Heure' to create 'timestamp' and convert to datetime
     df['timestamp'] = pd.to_datetime(df['Date'] + ' ' + df['Heure'].astype(str) + ':00:00')
     df['year'] = df['timestamp'].dt.year
@@ -56,7 +59,8 @@ def calculate_max_hours(df, target_price=15, ppa_price=80, return_extended_info=
                 break  # Stop once target price is exceeded
         
         # Phase 2: Extend hours if we can still stay below PPA price
-        if max_hours > 0 and max_hours < len(sorted_prices):
+        # Even if no base hours were found, we can still extend with PPA price limit
+        if max_hours < len(sorted_prices):
             extended_total_price = total_price
             extended_hours_count = max_hours
             
