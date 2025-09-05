@@ -89,11 +89,18 @@ def calculate_max_hours(df, target_price=15, ppa_price=80, return_extended_info=
             result[year_str] = {}
             extended_info[year_str] = {}
         
+        # Calculate the actual average price of selected hours
+        actual_avg_price = 0
+        if max_hours > 0:
+            selected_prices = sorted_prices[:max_hours]
+            actual_avg_price = sum(selected_prices) / len(selected_prices)
+        
         result[year_str][month_name] = max_hours
         extended_info[year_str][month_name] = {
             'base_hours': base_hours,
             'extended_hours': extended_hours,
-            'total_hours': max_hours
+            'total_hours': max_hours,
+            'actual_avg_price': actual_avg_price
         }
 
     if return_extended_info:
