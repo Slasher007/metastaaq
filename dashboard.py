@@ -81,95 +81,97 @@ if selected_years:
     data_content = data_content[data_content['Annee'].isin(selected_years)]
 
 # Electrolyzer parameters
-st.sidebar.markdown("#### ⚡ Electrolyzer Parameters")
-electrolyser_power = st.sidebar.slider(
-    "Electrolyzer Power (MW)",
-    min_value=1.0,
-    max_value=20.0,
-    value=5.0,
-    step=0.5,
-    help="Power capacity of the electrolyzer in MW"
-)
+with st.sidebar.expander("⚡ Electrolyser", expanded=True):
+    electrolyser_power = st.slider(
+        "Electrolyzer Power (MW)",
+        min_value=1.0,
+        max_value=20.0,
+        value=5.0,
+        step=0.5,
+        help="Power capacity of the electrolyzer in MW"
+    )
 
-electrolyser_specific_consumption = st.sidebar.slider(
-    "Specific Consumption (kWh/Nm³ H₂)",
-    min_value=4.0,
-    max_value=6.0,
-    value=4.8,
-    step=0.1,
-    help="Energy consumption per cubic meter of hydrogen produced"
-)
+    electrolyser_specific_consumption = st.slider(
+        "Specific Consumption (kWh/Nm³ H₂)",
+        min_value=4.0,
+        max_value=6.0,
+        value=4.8,
+        step=0.1,
+        help="Energy consumption per cubic meter of hydrogen produced"
+    )
 
 # Monthly Service Ratios
-st.sidebar.markdown("#### 📅 Monthly Service Ratios")
-st.sidebar.markdown("*Set individual availability ratios for each month (0.0 = off, 1.0 = always on)*")
-
-# Create two columns for better layout
-col1, col2 = st.sidebar.columns(2)
-
-# Create monthly service ratio sliders
-monthly_service_ratios = {}
 months = ["January", "February", "March", "April", "May", "June", 
           "July", "August", "September", "October", "November", "December"]
 
-# First 6 months in left column
-with col1:
-    for month in months[:6]:
-        monthly_service_ratios[month] = st.slider(
-            f"{month[:3]}",  # Short month name
-            min_value=0.0,
-    max_value=1.0,
-    value=0.98,
-    step=0.01,
-            key=f"service_{month}",
-            help=f"Service ratio for {month}"
-        )
+# Initialize monthly_service_ratios dictionary
+monthly_service_ratios = {}
 
-# Last 6 months in right column  
-with col2:
-    for month in months[6:]:
-        monthly_service_ratios[month] = st.slider(
-            f"{month[:3]}",  # Short month name
-            min_value=0.0,
-            max_value=1.0,
-            value=0.98,
-            step=0.01,
-            key=f"service_{month}",
-            help=f"Service ratio for {month}"
-        )
+# Create expandable section for service ratios
+with st.sidebar.expander("📅 Service Ratios", expanded=True):
+    st.markdown("*Set individual availability ratios for each month (0.0 = off, 1.0 = always on)*")
+    
+    # Create two columns for better layout
+    col1, col2 = st.columns(2)
+    
+    # First 6 months in left column
+    with col1:
+        for month in months[:6]:
+            monthly_service_ratios[month] = st.slider(
+                f"{month[:3]}",  # Short month name
+                min_value=0.0,
+                max_value=1.0,
+                value=0.98,
+                step=0.01,
+                key=f"service_{month}",
+                help=f"Service ratio for {month}"
+            )
+    
+    # Last 6 months in right column  
+    with col2:
+        for month in months[6:]:
+            monthly_service_ratios[month] = st.slider(
+                f"{month[:3]}",  # Short month name
+                min_value=0.0,
+                max_value=1.0,
+                value=0.98,
+                step=0.01,
+                key=f"service_{month}",
+                help=f"Service ratio for {month}"
+            )
 
 
 # Calculate average service ratio for display purposes
 avg_service_ratio = sum(monthly_service_ratios.values()) / len(monthly_service_ratios)
 
 # Price parameters
-st.sidebar.markdown("#### 💰 Price Parameters")
-target_prices = [st.sidebar.slider(
-    "Average Target Spot Price (€/MWh)",
-    min_value=5,
-    max_value=50,
-    value=30,
-    step=1
-)]
+with st.sidebar.expander("💰 Price", expanded=True):
+    target_prices = [st.slider(
+        "Average Target Spot Price (€/MWh)",
+        min_value=5,
+        max_value=50,
+        value=30,
+        step=1
+    )]
 
-# PV and PPA Price Parameters
-pv_price = st.sidebar.slider(
-    "PV Price (€/MWh)",
-    min_value=0,
-    max_value=100,
-    value=60,
-    step=5,
-    help="Price of photovoltaic energy"
-)
+    # PV and PPA Price Parameters
+    pv_price = st.slider(
+        "PV Price (€/MWh)",
+        min_value=0,
+        max_value=100,
+        value=60,
+        step=5,
+        help="Price of photovoltaic energy"
+    )
 
-ppa_price = st.sidebar.slider(
-    "PPA Price (€/MWh)",
-    min_value=15,
-    max_value=200,
-    value=70,
-    step=5,
-    help="Power Purchase Agreement price"
-)
+    ppa_price = st.slider(
+        "PPA Price (€/MWh)",
+        min_value=15,
+        max_value=200,
+        value=70,
+        step=5,
+        help="Power Purchase Agreement price"
+    )
 
 
 
