@@ -685,7 +685,7 @@ if run_simulation:
                     total_energy_year = total_pv_energy + total_spot_energy + total_ppa_energy
                     
                     total_pv_cost = total_pv_energy * pv_price
-                    total_spot_cost = total_spot_energy * target_price
+                    total_spot_cost = total_spot_energy * actual_spot_price
                     total_ppa_cost = total_ppa_energy * ppa_price
                     total_cost_year = total_pv_cost + total_spot_cost + total_ppa_cost
                     
