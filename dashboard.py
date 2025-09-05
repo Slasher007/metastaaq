@@ -208,7 +208,7 @@ pv_price = st.sidebar.slider(
 
 ppa_price = st.sidebar.slider(
     "PPA Price (€/MWh)",
-    min_value=50,
+    min_value=15,
     max_value=200,
     value=80,
     step=5,
@@ -335,7 +335,7 @@ if run_simulation:
                     # Run simulation components using monthly service ratios
                     expected_monthly_hours = get_required_hours_per_month_custom(monthly_service_ratios)
                     expected_monthly_power = get_expected_monthly_power_cons_custom(electrolyser_power, expected_monthly_hours)
-                    result = calculate_max_hours(data_content, target_price)
+                    result, extended_info = calculate_max_hours(data_content, target_price, ppa_price, return_extended_info=True)
                     df_result = display_table(result)
                     
                     # Calculate differences
@@ -350,12 +350,56 @@ if run_simulation:
                     # Create and display charts using full width
                     st.write("**📈 Available Hours Chart:**")
                     
-                    # Chart 1: Available Hours (Full Width)
+                    # Chart 1: Available Hours with Extended Hours Visualization (Full Width)
                     fig1, ax1 = plt.subplots(figsize=(12, 6))
                     df_plot = df_result.T
                     monthly_avg = df_plot.mean(axis=1)
                     
-                    df_plot.plot(kind='bar', ax=ax1, legend=True)
+                    # Create separate dataframes for base and extended hours
+                    base_hours_data = pd.DataFrame(index=df_plot.index, columns=df_plot.columns, dtype=float)
+                    extended_hours_data = pd.DataFrame(index=df_plot.index, columns=df_plot.columns, dtype=float)
+                    
+                    for year in df_plot.columns:
+                        for month in df_plot.index:
+                            if str(year) in extended_info and month in extended_info[str(year)]:
+                                info = extended_info[str(year)][month]
+                                base_hours_data.loc[month, year] = info['base_hours']
+                                extended_hours_data.loc[month, year] = info['extended_hours']
+                            else:
+                                base_hours_data.loc[month, year] = df_plot.loc[month, year] if pd.notna(df_plot.loc[month, year]) else 0
+                                extended_hours_data.loc[month, year] = 0
+                    
+                    # Fill NaN values with 0
+                    base_hours_data = base_hours_data.fillna(0)
+                    extended_hours_data = extended_hours_data.fillna(0)
+                    
+                    # Create manual bar chart to properly handle stacked visualization
+                    x_pos = range(len(df_plot.index))
+                    width = 0.8 / len(df_plot.columns)  # Width of bars
+                    
+                    # Colors for different years
+                    colors = plt.cm.tab10(range(len(df_plot.columns)))
+                    
+                    # Plot bars for each year
+                    for i, year in enumerate(df_plot.columns):
+                        x_offset = [x + width * (i - len(df_plot.columns)/2 + 0.5) for x in x_pos]
+                        
+                        # Base hours
+                        base_values = base_hours_data[year].values
+                        ax1.bar(x_offset, base_values, width, 
+                               label=f'{year}', color=colors[i], alpha=0.8)
+                        
+                        # Extended hours (stacked on top)
+                        extended_values = extended_hours_data[year].values
+                        ax1.bar(x_offset, extended_values, width, 
+                               bottom=base_values, color='gray', alpha=0.6)
+                    
+                    # Add legend entry for extended hours
+                    ax1.bar([], [], color='gray', alpha=1.0, label='Extended Hours (avg < PPA)')
+                    
+                    # Set x-axis labels
+                    ax1.set_xticks(x_pos)
+                    ax1.set_xticklabels(df_plot.index)
                     
                     # Plot mean values as prominent points with labels
                     ax1.plot(range(len(monthly_avg)), monthly_avg.values, 
@@ -380,7 +424,7 @@ if run_simulation:
                     
                     ax1.set_xlabel('Month')
                     ax1.set_ylabel('Available Hours')
-                    ax1.set_title(f'Spot Available Hours - {target_price}€/MWh\n(Service ratios: {", ".join([f"{month[:3]}:{monthly_service_ratios[month]:.0%}" for month in monthly_service_ratios])})')
+                    ax1.set_title(f'Spot Available Hours - {target_price}€/MWh (Extended to PPA {ppa_price}€/MWh)\n')
                     ax1.tick_params(axis='x', rotation=45)
                     ax1.legend(loc='upper left')
                     
