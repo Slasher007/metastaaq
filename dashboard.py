@@ -138,27 +138,6 @@ with col2:
             help=f"Service ratio for {month}"
         )
 
-# Add quick preset buttons for common scenarios
-st.sidebar.markdown("**Quick Presets:**")
-preset_col1, preset_col2, preset_col3 = st.sidebar.columns(3)
-
-with preset_col1:
-    if st.button("All Max", help="Set all months to 1.0"):
-        for month in months:
-            st.session_state[f"service_{month}"] = 1.0
-        st.rerun()
-
-with preset_col2:
-    if st.button("All 98%", help="Set all months to 0.98"):
-        for month in months:
-            st.session_state[f"service_{month}"] = 0.98
-        st.rerun()
-
-with preset_col3:
-    if st.button("All Off", help="Set all months to 0.0"):
-        for month in months:
-            st.session_state[f"service_{month}"] = 0.0
-        st.rerun()
 
 # Calculate average service ratio for display purposes
 avg_service_ratio = sum(monthly_service_ratios.values()) / len(monthly_service_ratios)
