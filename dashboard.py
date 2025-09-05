@@ -638,12 +638,12 @@ if run_simulation:
                     # Display pricing information
                     col1, col2, col3 = st.columns(3)
                     with col1:
-                        st.metric("**Target Average Price**", f"{target_price:.0f} €/MWh")
+                        st.metric("**Target Average Spot Price**", f"{target_price:.0f} €/MWh")
                     with col2:
-                        st.metric("**Actual Average Price**", f"{actual_spot_price:.2f} €/MWh")
+                        st.metric("**Actual Average Spot Price**", f"{actual_spot_price:.2f} €/MWh")
                     with col3:
                         price_diff = actual_spot_price - target_price
-                        st.metric("**Price Difference**", f"{price_diff:.2f} €/MWh", 
+                        st.metric("**Spot Price Difference**", f"{price_diff:.2f} €/MWh", 
                                  delta=f"{price_diff:.2f} €/MWh")
                     
                     # Display LCOE
