@@ -307,7 +307,7 @@ if run_simulation:
                 all_results = []
                 
                 for i, target_price in enumerate(target_prices):
-                    st.write(f"**Analyzing average target spot price: {target_price} €/MWh**")
+                    st.write(f"**Analyzing average target spot price: {target_price} €/MWh (Extended to PPA {ppa_price}€/MWh)**")
                     
                     # Run simulation components using monthly service ratios
                     expected_monthly_hours = get_required_hours_per_month_custom(monthly_service_ratios)
