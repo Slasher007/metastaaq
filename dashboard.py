@@ -176,7 +176,7 @@ if target_price_mode == "Single Price":
         "Average Target Spot Price (€/MWh)",
         min_value=5,
         max_value=50,
-        value=15,
+        value=30,
         step=1
     )]
 else:
@@ -201,7 +201,7 @@ pv_price = st.sidebar.slider(
     "PV Price (€/MWh)",
     min_value=0,
     max_value=100,
-    value=50,
+    value=60,
     step=5,
     help="Price of photovoltaic energy"
 )
@@ -210,7 +210,7 @@ ppa_price = st.sidebar.slider(
     "PPA Price (€/MWh)",
     min_value=15,
     max_value=200,
-    value=80,
+    value=70,
     step=5,
     help="Power Purchase Agreement price"
 )
