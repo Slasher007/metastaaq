@@ -173,7 +173,7 @@ target_price_mode = st.sidebar.radio(
 
 if target_price_mode == "Single Price":
     target_prices = [st.sidebar.slider(
-        "Target Spot Price (€/MWh)",
+        "Average Target Spot Price (€/MWh)",
         min_value=5,
         max_value=50,
         value=15,
@@ -330,7 +330,7 @@ if run_simulation:
                 all_results = []
                 
                 for i, target_price in enumerate(target_prices):
-                    st.write(f"**Analyzing target spot price: {target_price} €/MWh**")
+                    st.write(f"**Analyzing average target spot price: {target_price} €/MWh**")
                     
                     # Run simulation components using monthly service ratios
                     expected_monthly_hours = get_required_hours_per_month_custom(monthly_service_ratios)
@@ -424,7 +424,7 @@ if run_simulation:
                     
                     ax1.set_xlabel('Month')
                     ax1.set_ylabel('Available Hours')
-                    ax1.set_title(f'Spot Available Hours - {target_price}€/MWh (Extended to PPA {ppa_price}€/MWh)\n')
+                    ax1.set_title(f'Spot Available Hours - Average Target Price {target_price}€/MWh (Extended to PPA {ppa_price}€/MWh)\n')
                     ax1.tick_params(axis='x', rotation=45)
                     ax1.legend(loc='upper left')
                     
@@ -601,7 +601,7 @@ if run_simulation:
                         st.pyplot(fig3)
                     
                     # Display LCOE
-                    st.metric(f"**LCOE (Levelized Cost of Energy) for {target_price}€/MWh spot price:**", 
+                    st.metric(f"**LCOE (Levelized Cost of Energy) for {target_price}€/MWh average spot price:**", 
                              f"{lcoe:.2f} €/MWh")
                     
                     # Create detailed monthly breakdown table
@@ -694,7 +694,7 @@ if run_simulation:
                     cost_per_kg_ch4 = total_cost_year / total_yearly_ch4_kg if total_yearly_ch4_kg > 0 else 0
                     
                     # Display cost per KG CH4 alongside LCOE
-                    st.metric(f"**Energy Cost per KG CH₄ for {target_price}€/MWh spot price:**", 
+                    st.metric(f"**Energy Cost per KG CH₄ for {target_price}€/MWh average spot price:**", 
                              f"{cost_per_kg_ch4:.2f} €/kg CH₄")
                     
                     # Store results
@@ -724,7 +724,7 @@ if run_simulation:
                     comparison_data = []
                     for result in all_results:
                         comparison_data.append({
-                            'Target Spot Price (€/MWh)': result['target_price'],
+                            'Average Target Spot Price (€/MWh)': result['target_price'],
                             'Avg Monthly Hours': f"{result['monthly_avg_hours']:.1f}",
                             'Avg Monthly Power (MWh)': f"{result['monthly_avg_power']:.1f}",
                             'LCOE (€/MWh)': f"{result['lcoe']:.2f}"
@@ -741,13 +741,13 @@ if run_simulation:
                     power = [r['monthly_avg_power'] for r in all_results]
                     
                     ax_comp1.plot(prices, hours, 'o-', color='blue', linewidth=2, markersize=8)
-                    ax_comp1.set_xlabel('Target Spot Price (€/MWh)')
+                    ax_comp1.set_xlabel('Average Target Spot Price (€/MWh)')
                     ax_comp1.set_ylabel('Average Monthly Hours')
                     ax_comp1.set_title('Hours vs Price')
                     ax_comp1.grid(True, alpha=0.3)
                     
                     ax_comp2.plot(prices, power, 'o-', color='green', linewidth=2, markersize=8)
-                    ax_comp2.set_xlabel('Target Spot Price (€/MWh)')
+                    ax_comp2.set_xlabel('Average Target Spot Price (€/MWh)')
                     ax_comp2.set_ylabel('Average Monthly Power (MWh)')
                     ax_comp2.set_title('Power vs Price')
                     ax_comp2.grid(True, alpha=0.3)
