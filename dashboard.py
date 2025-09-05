@@ -393,6 +393,20 @@ if run_simulation:
                         extended_values = extended_hours_data[year].values
                         ax1.bar(x_offset, extended_values, width, 
                                bottom=base_values, color='gray', alpha=0.6)
+                        
+                        # Add text annotations on bars
+                        for j, (x, base_val, ext_val) in enumerate(zip(x_offset, base_values, extended_values)):
+                            # Annotate base hours (center of base bar)
+                            if base_val > 0:
+                                ax1.text(x, base_val/2, f'{int(base_val)}', 
+                                        ha='center', va='center', fontsize=8, fontweight='bold', 
+                                        color='white')
+                            
+                            # Annotate extended hours (center of extended bar)
+                            if ext_val > 0:
+                                ax1.text(x, base_val + ext_val/2, f'{int(ext_val)}', 
+                                        ha='center', va='center', fontsize=8, fontweight='bold', 
+                                        color='white')
                     
                     # Set x-axis labels
                     ax1.set_xticks(x_pos)
@@ -432,7 +446,7 @@ if run_simulation:
                     ax1.set_ylabel('Available Hours')
                     ax1.set_title(f'Spot Available Hours - Average Target Price {target_price}€/MWh (Extended to PPA {ppa_price}€/MWh)\n')
                     ax1.tick_params(axis='x', rotation=45)
-                    ax1.legend(handles=handles, labels=labels, loc='upper left')
+                    ax1.legend(handles=handles, labels=labels, loc='upper right')
                     
                     # Add second y-axis for power consumption
                     #ax2 = ax1.twinx()
