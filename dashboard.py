@@ -788,8 +788,8 @@ if run_simulation:
                                         c=lcoe_samples, cmap='viridis', s=50, alpha=0.7)
                     
                     # Add current point
-                    current_lcoe_3d = (base_pv_energy * pv_price + base_spot_energy * target_prices[0] + base_ppa_energy * ppa_price) / total_energy
-                    ax1.scatter([pv_price], [ppa_price], [target_prices[0]], 
+                    current_lcoe_3d = (base_pv_energy * pv_price + base_spot_energy * actual_spot_price + base_ppa_energy * ppa_price) / total_energy
+                    ax1.scatter([pv_price], [ppa_price], [actual_spot_price], 
                               color='red', s=200, marker='*', label=f'Current: {current_lcoe_3d:.2f}€/MWh')
                     
                     ax1.set_xlabel('PV Price (€/MWh)')
@@ -814,7 +814,7 @@ if run_simulation:
                     for i in range(len(ppa_contour)):
                         for j in range(len(pv_contour)):
                             pv_cost = base_pv_energy * PV_cont[i, j]
-                            spot_cost = base_spot_energy * target_prices[0]  # Fixed spot
+                            spot_cost = base_spot_energy * actual_spot_price  # Fixed spot
                             ppa_cost = base_ppa_energy * PPA_cont[i, j]
                             LCOE_contour[i, j] = (pv_cost + spot_cost + ppa_cost) / total_energy
                     
@@ -827,7 +827,7 @@ if run_simulation:
                     
                     ax2.set_xlabel('PV Price (€/MWh)')
                     ax2.set_ylabel('PPA Price (€/MWh)')
-                    ax2.set_title(f'LCOE Contours: PV vs PPA\n(Spot = {target_prices[0]}€/MWh)', fontweight='bold')
+                    ax2.set_title(f'LCOE Contours: PV vs PPA\n(Spot = {actual_spot_price:.2f}€/MWh)', fontweight='bold')
                     ax2.legend()
                     
                     plt.colorbar(contour, ax=ax2, label='LCOE (€/MWh)')
@@ -862,7 +862,7 @@ if run_simulation:
                     # Current scenario
                     current_pv_norm = pv_price / 100
                     current_ppa_norm = (ppa_price - 50) / 100
-                    current_spot_norm = (target_prices[0] - 5) / 45
+                    current_spot_norm = (actual_spot_price - 5) / 45
                     current_lcoe_norm = (current_lcoe_3d - min(lcoe_samples)) / (max(lcoe_samples) - min(lcoe_samples))
                     
                     ax3.plot([0, 1, 2, 3], [current_pv_norm, current_ppa_norm, current_spot_norm, current_lcoe_norm], 
@@ -883,7 +883,7 @@ if run_simulation:
                     ppa_heat = np.linspace(50, 150, 10)
                     
                     # Use current spot price
-                    spot_fixed = target_prices[0]
+                    spot_fixed = actual_spot_price
                     
                     heat_matrix = np.zeros((len(ppa_heat), len(pv_heat)))
                     for i, ppa_p in enumerate(ppa_heat):
@@ -935,7 +935,7 @@ if run_simulation:
                                            f'{pv_samples[min_idx]:.1f}', f'{min(pv_samples):.1f}-{max(pv_samples):.1f}'],
                         'PPA Price (€/MWh)': [f'{np.mean(ppa_samples):.1f} (avg)', f'{ppa_price:.1f}', 
                                             f'{ppa_samples[min_idx]:.1f}', f'{min(ppa_samples):.1f}-{max(ppa_samples):.1f}'],
-                        'Spot Price (€/MWh)': [f'{np.mean(spot_samples):.1f} (avg)', f'{target_prices[0]:.1f}', 
+                        'Spot Price (€/MWh)': [f'{np.mean(spot_samples):.1f} (avg)', f'{actual_spot_price:.2f}', 
                                              f'{spot_samples[min_idx]:.1f}', f'{min(spot_samples):.1f}-{max(spot_samples):.1f}'],
                         'LCOE (€/MWh)': [f'{np.mean(lcoe_samples):.2f} (avg)', f'{current_lcoe_3d:.2f}', 
                                        f'{min_lcoe_overall:.2f}', f'{min_lcoe_overall:.2f}-{max_lcoe_overall:.2f}']
