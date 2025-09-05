@@ -394,9 +394,6 @@ if run_simulation:
                         ax1.bar(x_offset, extended_values, width, 
                                bottom=base_values, color='gray', alpha=0.6)
                     
-                    # Add legend entry for extended hours
-                    ax1.bar([], [], color='gray', alpha=1.0, label='Extended Hours (avg < PPA)')
-                    
                     # Set x-axis labels
                     ax1.set_xticks(x_pos)
                     ax1.set_xticklabels(df_plot.index)
@@ -422,11 +419,20 @@ if run_simulation:
                                            edgecolor='red', 
                                            alpha=0.8))
                     
+                    # Add legend entry for extended hours using Rectangle patch for better alpha rendering
+                    from matplotlib.patches import Rectangle
+                    extended_patch = Rectangle((0, 0), 1, 1, facecolor='gray', alpha=0.6, label='Extended Hours (avg < PPA)')
+                    
+                    # Get current handles and labels, then add the extended hours patch
+                    handles, labels = ax1.get_legend_handles_labels()
+                    handles.append(extended_patch)
+                    labels.append('Extended Hours (avg < PPA)')
+                    
                     ax1.set_xlabel('Month')
                     ax1.set_ylabel('Available Hours')
                     ax1.set_title(f'Spot Available Hours - Average Target Price {target_price}€/MWh (Extended to PPA {ppa_price}€/MWh)\n')
                     ax1.tick_params(axis='x', rotation=45)
-                    ax1.legend(loc='upper left')
+                    ax1.legend(handles=handles, labels=labels, loc='upper left')
                     
                     # Add second y-axis for power consumption
                     #ax2 = ax1.twinx()

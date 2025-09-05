@@ -69,12 +69,18 @@ def plot_chart(df_result, target_price, title, power, y_label, df_power_diff=Non
             ax1.bar(x_offset, extended_values, width, 
                    bottom=base_values, color='gray', alpha=0.6)
         
-        # Add legend entry for extended hours
-        ax1.bar([], [], color='gray', alpha=1.0, label='Extended Hours (avg < PPA)')
-        
         # Set x-axis labels
         ax1.set_xticks(x_pos)
         ax1.set_xticklabels(df_plot.index)
+        
+        # Add legend entry for extended hours using Rectangle patch for better alpha rendering
+        from matplotlib.patches import Rectangle
+        extended_patch = Rectangle((0, 0), 1, 1, facecolor='gray', alpha=0.6, label='Extended Hours (avg < PPA)')
+        
+        # Get current handles and labels, then add the extended hours patch
+        handles, labels = ax1.get_legend_handles_labels()
+        handles.append(extended_patch)
+        labels.append('Extended Hours (avg < PPA)')
     else:
         # Original plotting without extended hours
         df_plot.plot(kind='bar', ax=ax1, legend=True)
@@ -94,10 +100,12 @@ def plot_chart(df_result, target_price, title, power, y_label, df_power_diff=Non
     ax1.set_ylabel(y_label)
     if extended_info is not None:
         ax1.set_title(f"{title} - {power} MW (Extended to PPA {ppa_price}€/MWh)")
+        # Use custom legend with extended hours patch
+        ax1.legend(handles=handles, labels=labels, loc='upper left')
     else:
         ax1.set_title(f"{title} - {power} MW")
+        ax1.legend(loc='upper left')
     ax1.tick_params(axis='x', rotation=45)
-    ax1.legend(loc='upper left')
 
     # ---------------------
     # First Right Y-axis: Power Consumption
