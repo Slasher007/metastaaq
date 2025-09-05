@@ -165,36 +165,13 @@ avg_service_ratio = sum(monthly_service_ratios.values()) / len(monthly_service_r
 
 # Price parameters
 st.sidebar.markdown("#### 💰 Price Parameters")
-target_price_mode = st.sidebar.radio(
-    "Spot Price Selection Mode",
-    options=["Single Price", "Multiple Prices"],
-    help="Choose to analyze single or multiple target spot prices"
-)
-
-if target_price_mode == "Single Price":
-    target_prices = [st.sidebar.slider(
-        "Average Target Spot Price (€/MWh)",
-        min_value=5,
-        max_value=50,
-        value=30,
-        step=1
-    )]
-else:
-    price_range = st.sidebar.slider(
-        "Spot Price Range (€/MWh)",
-        min_value=5,
-        max_value=50,
-        value=(10, 30),
-        step=5
-    )
-    price_step = st.sidebar.slider(
-        "Spot Price Step (€/MWh)",
-        min_value=1,
-        max_value=10,
-        value=5,
-        step=1
-    )
-    target_prices = list(range(price_range[0], price_range[1] + 1, price_step))
+target_prices = [st.sidebar.slider(
+    "Average Target Spot Price (€/MWh)",
+    min_value=5,
+    max_value=50,
+    value=30,
+    step=1
+)]
 
 # PV and PPA Price Parameters
 pv_price = st.sidebar.slider(
@@ -775,46 +752,6 @@ if run_simulation:
                 
 
                 
-                # Add comparison summary if multiple prices
-                if len(all_results) > 1:
-                    st.markdown("---")
-                    st.markdown("### 📈 Price Comparison Summary")
-                    
-                    comparison_data = []
-                    for result in all_results:
-                        comparison_data.append({
-                            'Target Spot Price (€/MWh)': result['target_price'],
-                            'Actual Avg Spot Price (€/MWh)': f"{result['actual_spot_price']:.2f}",
-                            'Avg Monthly Hours': f"{result['monthly_avg_hours']:.1f}",
-                            'Avg Monthly Power (MWh)': f"{result['monthly_avg_power']:.1f}",
-                            'LCOE (€/MWh)': f"{result['lcoe']:.2f}"
-                        })
-                    
-                    comparison_df = pd.DataFrame(comparison_data)
-                    st.dataframe(comparison_df, width='stretch')
-                    
-                    # Price comparison chart
-                    fig_comp, (ax_comp1, ax_comp2) = plt.subplots(1, 2, figsize=(12, 5))
-                    
-                    prices = [r['target_price'] for r in all_results]
-                    hours = [r['monthly_avg_hours'] for r in all_results]
-                    power = [r['monthly_avg_power'] for r in all_results]
-                    
-                    ax_comp1.plot(prices, hours, 'o-', color='blue', linewidth=2, markersize=8)
-                    ax_comp1.set_xlabel('Average Target Spot Price (€/MWh)')
-                    ax_comp1.set_ylabel('Average Monthly Hours')
-                    ax_comp1.set_title('Hours vs Price')
-                    ax_comp1.grid(True, alpha=0.3)
-                    
-                    ax_comp2.plot(prices, power, 'o-', color='green', linewidth=2, markersize=8)
-                    ax_comp2.set_xlabel('Average Target Spot Price (€/MWh)')
-                    ax_comp2.set_ylabel('Average Monthly Power (MWh)')
-                    ax_comp2.set_title('Power vs Price')
-                    ax_comp2.grid(True, alpha=0.3)
-                    
-                    plt.tight_layout()
-                    st.pyplot(fig_comp)
-                
                 # Add comprehensive 3D analysis
                 st.markdown("---")
                 st.write("**🎯 Complete 3D Analysis: All Three Price Sources:**")
@@ -1045,7 +982,7 @@ with st.expander("ℹ️ How to use this dashboard"):
     st.markdown("""
     1. **Select Years**: Choose which years to include in the analysis
     2. **Set Parameters**: Adjust electrolyzer power, consumption, and service ratio
-    3. **Choose Prices**: Select single or multiple target spot prices for analysis
+    3. **Set Target Price**: Adjust the average target spot price for analysis
     4. **Auto-Update**: Results update automatically when you change any parameter!
     5. **Manual Refresh**: Use the "Manual Refresh" button if needed
     6. **View Results**: Charts and tables are displayed below the parameters
