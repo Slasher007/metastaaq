@@ -920,29 +920,6 @@ if run_simulation:
                                 fontsize=16, fontweight='bold', y=0.98)
                     plt.tight_layout()
                     st.pyplot(fig_complete)
-                    
-                    # Add comprehensive insights
-                    st.write("**🔍 Multi-Dimensional Analysis Insights:**")
-                    
-                    # Calculate optimal combinations
-                    min_lcoe_overall = min(lcoe_samples)
-                    max_lcoe_overall = max(lcoe_samples)
-                    min_idx = lcoe_samples.index(min_lcoe_overall)
-                    
-                    optimal_combination = {
-                        'Analysis Type': ['3D Scatter Plot', 'Current Configuration', 'Optimal Found', 'Range Analysis'],
-                        'PV Price (€/MWh)': [f'{np.mean(pv_samples):.1f} (avg)', f'{pv_price:.1f}', 
-                                           f'{pv_samples[min_idx]:.1f}', f'{min(pv_samples):.1f}-{max(pv_samples):.1f}'],
-                        'PPA Price (€/MWh)': [f'{np.mean(ppa_samples):.1f} (avg)', f'{ppa_price:.1f}', 
-                                            f'{ppa_samples[min_idx]:.1f}', f'{min(ppa_samples):.1f}-{max(ppa_samples):.1f}'],
-                        'Spot Price (€/MWh)': [f'{np.mean(spot_samples):.1f} (avg)', f'{actual_spot_price:.2f}', 
-                                             f'{spot_samples[min_idx]:.1f}', f'{min(spot_samples):.1f}-{max(spot_samples):.1f}'],
-                        'LCOE (€/MWh)': [f'{np.mean(lcoe_samples):.2f} (avg)', f'{current_lcoe_3d:.2f}', 
-                                       f'{min_lcoe_overall:.2f}', f'{min_lcoe_overall:.2f}-{max_lcoe_overall:.2f}']
-                    }
-                    
-                    comprehensive_df = pd.DataFrame(optimal_combination)
-                    st.dataframe(comprehensive_df, width='stretch')
                 else:
                     st.warning("⚠️ No energy data available for 3D analysis. Please check the simulation parameters.")
                 
