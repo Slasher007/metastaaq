@@ -173,6 +173,44 @@ with st.sidebar.expander("💰 Price", expanded=True):
         help="Power Purchase Agreement price"
     )
 
+# PV Installation Economics Parameters
+with st.sidebar.expander("☀️ PV Installation Economics", expanded=True):
+    pv_project_years = st.slider(
+        "Project Years",
+        min_value=10,
+        max_value=30,
+        value=20,
+        step=1,
+        help="Project lifetime in years"
+    )
+    
+    pv_capex = st.number_input(
+        "CAPEX (€)",
+        min_value=0,
+        max_value=50000000,
+        value=831600,
+        step=10000,
+        help="Capital expenditure for PV installation"
+    )
+    
+    pv_opex = st.number_input(
+        "OPEX (€/year)",
+        min_value=0,
+        max_value=500000,
+        value=21560,
+        step=1000,
+        help="Annual operational expenditure for PV installation"
+    )
+    
+    pci_ch4_kwh_per_kg = st.slider(
+        "PCI CH₄ (kWh/kg)",
+        min_value=10.0,
+        max_value=20.0,
+        value=13.9,
+        step=0.1,
+        help="Lower Calorific Value of CH₄ in kWh per kg"
+    )
+
 
 
 # Calculate derived parameters
@@ -201,6 +239,15 @@ total_yearly_ch4_kg = sum(monthly_ch4_production.values())
 total_yearly_ch4_tonnes = total_yearly_ch4_kg / 1000
 st.sidebar.metric("Yearly CH₄ Production", f"{total_yearly_ch4_tonnes:,.0f} Tonnes")
 
+# Calculate PV Economics Parameters (will be updated in results section with actual PV energy data)
+# Placeholder calculations for sidebar display - will show "TBD" until simulation runs
+yearly_GWh_PCI_ch4_pv = 0  # Will be calculated in results section
+euro_per_MWh_PCI_CH4_pv = 0  # Will be calculated in results section
+
+# Display PV Economics metrics (placeholders)
+st.sidebar.metric("PV-specific GWh PCI CH₄", "TBD - Run Simulation")
+st.sidebar.metric("PV-specific €/MWh PCI CH₄", "TBD - Run Simulation")
+
 # Add expandable section for monthly details
 with st.sidebar.expander("📅 Monthly Details"):
     for month, production in monthly_ch4_production.items():
@@ -220,7 +267,11 @@ current_params = {
     'monthly_service_ratios': tuple(sorted(monthly_service_ratios.items())),
     'target_prices': tuple(target_prices),
     'pv_price': pv_price,
-    'ppa_price': ppa_price
+    'ppa_price': ppa_price,
+    'pv_project_years': pv_project_years,
+    'pv_capex': pv_capex,
+    'pv_opex': pv_opex,
+    'pci_ch4_kwh_per_kg': pci_ch4_kwh_per_kg
 }
 
 # Check if parameters have changed
@@ -553,6 +604,23 @@ if run_simulation:
                     total_pv_energy = sum(df_plot_data['PV'])
                     total_spot_energy = sum(df_plot_data['Spot'])
                     total_ppa_energy = sum(df_plot_data['PPA'])
+                    total_energy_consumed = total_pv_energy + total_spot_energy + total_ppa_energy
+                    
+                    # Calculate PV-specific CH₄ production and economics
+                    if total_energy_consumed > 0:
+                        pv_energy_ratio = total_pv_energy / total_energy_consumed
+                        pv_ch4_production_kg = total_yearly_ch4_kg * pv_energy_ratio
+                        yearly_GWh_PCI_ch4_pv = (pv_ch4_production_kg * pci_ch4_kwh_per_kg) / 1000000  # Convert kWh to GWh
+                        
+                        if yearly_GWh_PCI_ch4_pv > 0:
+                            euro_per_MWh_PCI_CH4_pv = (pv_capex + (pv_opex * pv_project_years)) / (yearly_GWh_PCI_ch4_pv * pv_project_years * 1000)  # Convert GWh to MWh
+                        else:
+                            euro_per_MWh_PCI_CH4_pv = 0
+                    else:
+                        pv_energy_ratio = 0
+                        pv_ch4_production_kg = 0
+                        yearly_GWh_PCI_ch4_pv = 0
+                        euro_per_MWh_PCI_CH4_pv = 0
                     
                     # Create pie chart data
                     pie_data = [total_pv_energy, total_spot_energy, total_ppa_energy]
@@ -728,8 +796,41 @@ if run_simulation:
                     cost_per_kg_ch4 = total_cost_year / total_yearly_ch4_kg if total_yearly_ch4_kg > 0 else 0
                     
                     # Display cost per KG CH4 alongside LCOE
-                    st.metric(f"**Energy Cost per KG CH₄ for {actual_spot_price:.2f}€/MWh actual average spot price:**", 
-                             f"{cost_per_kg_ch4:.2f} €/kg CH₄")
+                    #st.metric(f"**Energy Cost per KG CH₄ for {actual_spot_price:.2f}€/MWh actual average spot price:**", 
+                             #f"{cost_per_kg_ch4:.2f} €/kg CH₄")
+                    
+                    # Display PV Economics Results
+                    st.markdown("---")
+                    st.markdown("#### ☀️ PV Installation Economics Results")
+                    
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("**Total Yearly CH₄ Production**", f"{total_yearly_ch4_kg:,.0f} kg")
+                    with col2:
+                        st.metric("**PV Energy Ratio**", f"{pv_energy_ratio:.1%}")
+                    with col3:
+                        st.metric("**PV-specific CH₄ Production**", f"{pv_ch4_production_kg:,.0f} kg")
+                    with col4:
+                        st.metric("**PV-specific GWh PCI CH₄**", f"{yearly_GWh_PCI_ch4_pv:.2f} GWh")
+                    
+                    # Key PV Economics Metric
+                    st.metric("**€/MWh PCI CH₄ (PV-specific)**", f"{euro_per_MWh_PCI_CH4_pv:.2f} €/MWh")
+                    
+                    # Additional PV Economics Details
+                    st.markdown("**PV Economics Breakdown:**")
+                    pv_breakdown_col1, pv_breakdown_col2 = st.columns(2)
+                    
+                    with pv_breakdown_col1:
+                        st.write(f"• **Project Years**: {pv_project_years} years")
+                        st.write(f"• **CAPEX**: {pv_capex:,.0f} €")
+                        st.write(f"• **Annual OPEX**: {pv_opex:,.0f} €/year")
+                        st.write(f"• **PV Energy**: {total_pv_energy:.1f} MWh/year")
+                    
+                    with pv_breakdown_col2:
+                        st.write(f"• **Total OPEX over {pv_project_years} years**: {pv_opex * pv_project_years:,.0f} €")
+                        st.write(f"• **Total Investment**: {pv_capex + (pv_opex * pv_project_years):,.0f} €")
+                        st.write(f"• **PCI CH₄**: {pci_ch4_kwh_per_kg} kWh/kg")
+                        st.write(f"• **PV CH₄ Production**: {pv_ch4_production_kg/1000:.1f} tonnes/year")
                     
                     # Store results
                     all_results.append({
