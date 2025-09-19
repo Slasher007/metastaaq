@@ -239,14 +239,7 @@ total_yearly_ch4_kg = sum(monthly_ch4_production.values())
 total_yearly_ch4_tonnes = total_yearly_ch4_kg / 1000
 st.sidebar.metric("Yearly CH₄ Production", f"{total_yearly_ch4_tonnes:,.0f} Tonnes")
 
-# Calculate PV Economics Parameters (will be updated in results section with actual PV energy data)
-# Placeholder calculations for sidebar display - will show "TBD" until simulation runs
-yearly_GWh_PCI_ch4_pv = 0  # Will be calculated in results section
-euro_per_MWh_PCI_CH4_pv = 0  # Will be calculated in results section
-
-# Display PV Economics metrics (placeholders)
-st.sidebar.metric("PV-specific GWh PCI CH₄", "TBD - Run Simulation")
-st.sidebar.metric("PV-specific €/MWh PCI CH₄", "TBD - Run Simulation")
+# PV Economics Parameters will be calculated in results section with actual PV energy data
 
 # Add expandable section for monthly details
 with st.sidebar.expander("📅 Monthly Details"):
