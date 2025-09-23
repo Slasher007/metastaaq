@@ -91,7 +91,7 @@ def calculate_max_hours(df, target_price=15, ppa_price=80, return_extended_info=
         
         # Calculate the actual average price of selected hours
         actual_avg_price = 0
-        if max_hours > 0:
+        if max_hours is not None and max_hours > 0:
             selected_prices = sorted_prices[:max_hours]
             actual_avg_price = sum(selected_prices) / len(selected_prices)
         
