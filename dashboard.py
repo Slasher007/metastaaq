@@ -280,14 +280,35 @@ with st.sidebar.expander("☀️ PV Installation Economics", expanded=True):
             help="Manual capital expenditure for PV installation"
         )
     
-    pv_opex = st.number_input(
-        "OPEX (€/year)",
-        min_value=0,
-        max_value=500000,
-        value=21560,
-        step=1000,
-        help="Annual operational expenditure for PV installation"
+    # OPEX calculation based on CAPEX percentage
+    opex_percentage = st.slider(
+        "OPEX (% of CAPEX/year)",
+        min_value=1.0,
+        max_value=2.0,
+        value=1.5,
+        step=0.1,
+        help="Annual operational expenditure as percentage of CAPEX (typical range: 1-2%)"
     )
+    
+    # Option to use calculated or manual OPEX
+    use_calculated_opex = st.checkbox(
+        "Use Calculated OPEX",
+        value=True,
+        help="Use automatically calculated OPEX based on CAPEX percentage"
+    )
+    
+    if use_calculated_opex:
+        pv_opex = pv_capex * (opex_percentage / 100)
+        st.write(f"**Calculated OPEX**: {pv_opex:,.0f} €/year ({opex_percentage}% of CAPEX)")
+    else:
+        pv_opex = st.number_input(
+            "Manual OPEX (€/year)",
+            min_value=0,
+            max_value=500000,
+            value=int(pv_capex * (opex_percentage / 100)) if pv_capex > 0 else 21560,
+            step=1000,
+            help="Manual annual operational expenditure for PV installation"
+        )
     
     pci_ch4_kwh_per_kg = st.slider(
         "PCI CH₄ (kWh/kg)",
@@ -356,6 +377,8 @@ current_params = {
     'pv_cost_per_wp': pv_cost_per_wp,
     'battery_cost_per_kwh': battery_cost_per_kwh if include_battery else 0,
     'use_calculated_capex': use_calculated_capex,
+    'opex_percentage': opex_percentage,
+    'use_calculated_opex': use_calculated_opex,
     'pv_capex': pv_capex,
     'pv_opex': pv_opex,
     'pci_ch4_kwh_per_kg': pci_ch4_kwh_per_kg
