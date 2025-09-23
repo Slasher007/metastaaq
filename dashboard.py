@@ -174,7 +174,7 @@ with st.sidebar.expander("💰 Price", expanded=True):
     )
 
 # PV Installation Economics Parameters
-with st.sidebar.expander("☀️ PV Installation Economics", expanded=True):
+with st.sidebar.expander("☀️ PV Installation", expanded=True):
     pv_project_years = st.slider(
         "Project Years",
         min_value=10,
@@ -216,7 +216,7 @@ with st.sidebar.expander("☀️ PV Installation Economics", expanded=True):
         max_value=1.2,
         value=0.9,
         step=0.05,
-        help="PV cost per Wp (0.7-0.8 €/Wp ground >500kWp, 0.8-1.0 €/Wp for 1-10MWp)"
+        help="PV cost per Wp (0.7-0.8 €/Wp ground >500kWp, 0.8-1.0 €/Wp for 1-10MWp). Source: ADEME - Coûts énergies renouvelables 2022 - https://www.geothermies.fr/sites/default/files/inline-files/ademe_couts-energies-renouvelables-et-recuperation-donnees2022-011599.pdf"
     )
     
 
