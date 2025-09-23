@@ -184,14 +184,101 @@ with st.sidebar.expander("☀️ PV Installation Economics", expanded=True):
         help="Project lifetime in years"
     )
     
-    pv_capex = st.number_input(
-        "CAPEX (€)",
-        min_value=0,
-        max_value=50000000,
-        value=831600,
-        step=10000,
-        help="Capital expenditure for PV installation"
+    # Surface and Power Estimation
+    pv_surface_hectares = st.number_input(
+        "Surface (hectares)",
+        min_value=0.1,
+        max_value=100.0,
+        value=1.0,
+        step=0.1,
+        help="Surface area of PV installation in hectares"
     )
+    
+    # Estimate power from surface (typical: 0.5-1.0 MWp per hectare)
+    power_density_mwp_per_ha = st.slider(
+        "Power Density (MWp/ha)",
+        min_value=0.3,
+        max_value=1.2,
+        value=0.8,
+        step=0.1,
+        help="Power density in MWp per hectare (typical range: 0.5-1.0)"
+    )
+    
+    estimated_power_mwp = pv_surface_hectares * power_density_mwp_per_ha
+    estimated_power_kwp = estimated_power_mwp * 1000
+    
+    st.write(f"**Estimated Power**: {estimated_power_mwp:.2f} MWp ({estimated_power_kwp:,.0f} kWp)")
+    
+    # Battery configuration
+    include_battery = st.checkbox(
+        "Include Battery Storage",
+        value=False,
+        help="Include battery storage in CAPEX calculation"
+    )
+    
+    if include_battery:
+        battery_ratio = st.slider(
+            "Battery Ratio (MWh/MWp)",
+            min_value=0.5,
+            max_value=4.0,
+            value=2.0,
+            step=0.1,
+            help="Battery capacity ratio relative to PV power (MWh per MWp)"
+        )
+        battery_capacity_mwh = estimated_power_mwp * battery_ratio
+        st.write(f"**Battery Capacity**: {battery_capacity_mwh:.2f} MWh")
+    else:
+        battery_capacity_mwh = 0
+    
+    # Cost parameters based on industry data
+    pv_cost_per_wp = st.slider(
+        "PV Cost (€/Wp)",
+        min_value=0.7,
+        max_value=1.2,
+        value=0.9,
+        step=0.05,
+        help="PV cost per Wp (0.7-0.8 €/Wp ground >500kWp, 0.8-1.0 €/Wp for 1-10MWp)"
+    )
+    
+    if include_battery:
+        battery_cost_per_kwh = st.slider(
+            "Battery Cost (€/kWh)",
+            min_value=200,
+            max_value=500,
+            value=325,
+            step=25,
+            help="Battery system cost per kWh (250-400 €/kWh typical range)"
+        )
+    
+    # Calculate CAPEX
+    estimated_power_wp = estimated_power_kwp * 1000  # Convert kWp to Wp
+    pv_capex_calculated = estimated_power_wp * pv_cost_per_wp
+    battery_capex = battery_capacity_mwh * 1000 * battery_cost_per_kwh if include_battery else 0
+    total_capex_calculated = pv_capex_calculated + battery_capex
+    
+    # Option to use calculated or manual CAPEX
+    use_calculated_capex = st.checkbox(
+        "Use Calculated CAPEX",
+        value=True,
+        help="Use automatically calculated CAPEX based on surface and costs"
+    )
+    
+    if use_calculated_capex:
+        pv_capex = total_capex_calculated
+        st.write(f"**Calculated CAPEX**:")
+        st.write(f"• PV: {pv_capex_calculated:,.0f} €")
+        if include_battery:
+            st.write(f"• Battery: {battery_capex:,.0f} €")
+        st.write(f"• **Total: {total_capex_calculated:,.0f} €**")
+    else:
+        pv_capex = st.number_input(
+            "Manual CAPEX (€)",
+            min_value=0,
+            max_value=50000000,
+            value=int(total_capex_calculated),
+            step=10000,
+            help="Manual capital expenditure for PV installation"
+        )
     
     pv_opex = st.number_input(
         "OPEX (€/year)",
@@ -262,6 +349,13 @@ current_params = {
     'pv_price': pv_price,
     'ppa_price': ppa_price,
     'pv_project_years': pv_project_years,
+    'pv_surface_hectares': pv_surface_hectares,
+    'power_density_mwp_per_ha': power_density_mwp_per_ha,
+    'include_battery': include_battery,
+    'battery_ratio': battery_ratio if include_battery else 0,
+    'pv_cost_per_wp': pv_cost_per_wp,
+    'battery_cost_per_kwh': battery_cost_per_kwh if include_battery else 0,
+    'use_calculated_capex': use_calculated_capex,
     'pv_capex': pv_capex,
     'pv_opex': pv_opex,
     'pci_ch4_kwh_per_kg': pci_ch4_kwh_per_kg
@@ -810,19 +904,35 @@ if run_simulation:
                     st.metric("**€/MWh PCI CH₄ (PV-specific)**", f"{euro_per_MWh_PCI_CH4_pv:.2f} €/MWh")
                     
                     # Additional PV Economics Details
-                    st.markdown("**PV Economics Breakdown:**")
+                    st.markdown("**PV Installation Details:**")
                     pv_breakdown_col1, pv_breakdown_col2 = st.columns(2)
                     
                     with pv_breakdown_col1:
+                        st.write(f"• **Surface**: {pv_surface_hectares} hectares")
+                        st.write(f"• **Power Density**: {power_density_mwp_per_ha} MWp/ha")
+                        st.write(f"• **Estimated Power**: {estimated_power_mwp:.2f} MWp")
+                        if include_battery:
+                            st.write(f"• **Battery Capacity**: {battery_capacity_mwh:.1f} MWh")
                         st.write(f"• **Project Years**: {pv_project_years} years")
-                        st.write(f"• **CAPEX**: {pv_capex:,.0f} €")
-                        st.write(f"• **Annual OPEX**: {pv_opex:,.0f} €/year")
-                        st.write(f"• **PV Energy**: {total_pv_energy:.1f} MWh/year")
                     
                     with pv_breakdown_col2:
+                        st.write(f"• **PV Cost**: {pv_cost_per_wp:.2f} €/Wp")
+                        if include_battery:
+                            st.write(f"• **Battery Cost**: {battery_cost_per_kwh} €/kWh")
+                        st.write(f"• **CAPEX**: {pv_capex:,.0f} €")
+                        st.write(f"• **Annual OPEX**: {pv_opex:,.0f} €/year")
+                        st.write(f"• **PCI CH₄**: {pci_ch4_kwh_per_kg} kWh/kg")
+                    
+                    # Financial Summary
+                    st.markdown("**Financial Summary:**")
+                    financial_col1, financial_col2 = st.columns(2)
+                    
+                    with financial_col1:
                         st.write(f"• **Total OPEX over {pv_project_years} years**: {pv_opex * pv_project_years:,.0f} €")
                         st.write(f"• **Total Investment**: {pv_capex + (pv_opex * pv_project_years):,.0f} €")
-                        st.write(f"• **PCI CH₄**: {pci_ch4_kwh_per_kg} kWh/kg")
+                    
+                    with financial_col2:
+                        st.write(f"• **PV Energy**: {total_pv_energy:.1f} MWh/year")
                         st.write(f"• **PV CH₄ Production**: {pv_ch4_production_kg/1000:.1f} tonnes/year")
                     
                     # Store results
