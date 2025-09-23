@@ -217,18 +217,20 @@ with st.sidebar.expander("☀️ PV Installation Economics", expanded=True):
     )
     
     if include_battery:
-        battery_ratio = st.slider(
-            "Battery Ratio (MWh/MWp)",
-            min_value=0.5,
-            max_value=4.0,
-            value=2.0,
-            step=0.1,
-            help="Battery capacity ratio relative to PV power (MWh per MWp)"
+        storage_hours = st.slider(
+            "Storage Hours",
+            min_value=1,
+            max_value=12,
+            value=4,
+            step=1,
+            help="Number of hours of PV production that can be stored in battery"
         )
-        battery_capacity_mwh = estimated_power_mwp * battery_ratio
-        st.write(f"**Battery Capacity**: {battery_capacity_mwh:.2f} MWh")
+        # Battery capacity = PV power × storage hours
+        battery_capacity_mwh = estimated_power_mwp * storage_hours
+        st.write(f"**Battery Capacity**: {battery_capacity_mwh:.2f} MWh ({storage_hours}h × {estimated_power_mwp:.2f} MWp)")
     else:
         battery_capacity_mwh = 0
+        storage_hours = 0
     
     # Cost parameters based on industry data
     pv_cost_per_wp = st.slider(
@@ -373,7 +375,7 @@ current_params = {
     'pv_surface_hectares': pv_surface_hectares,
     'power_density_mwp_per_ha': power_density_mwp_per_ha,
     'include_battery': include_battery,
-    'battery_ratio': battery_ratio if include_battery else 0,
+    'storage_hours': storage_hours if include_battery else 0,
     'pv_cost_per_wp': pv_cost_per_wp,
     'battery_cost_per_kwh': battery_cost_per_kwh if include_battery else 0,
     'use_calculated_capex': use_calculated_capex,
@@ -935,6 +937,7 @@ if run_simulation:
                         st.write(f"• **Power Density**: {power_density_mwp_per_ha} MWp/ha")
                         st.write(f"• **Estimated Power**: {estimated_power_mwp:.2f} MWp")
                         if include_battery:
+                            st.write(f"• **Storage Hours**: {storage_hours}h")
                             st.write(f"• **Battery Capacity**: {battery_capacity_mwh:.1f} MWh")
                         st.write(f"• **Project Years**: {pv_project_years} years")
                     
