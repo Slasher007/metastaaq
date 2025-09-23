@@ -209,6 +209,17 @@ with st.sidebar.expander("☀️ PV Installation Economics", expanded=True):
     
     st.write(f"**Estimated Power**: {estimated_power_mwp:.2f} MWp ({estimated_power_kwp:,.0f} kWp)")
     
+    # Cost parameters based on industry data
+    pv_cost_per_wp = st.slider(
+        "PV Cost (€/Wp)",
+        min_value=0.7,
+        max_value=1.2,
+        value=0.9,
+        step=0.05,
+        help="PV cost per Wp (0.7-0.8 €/Wp ground >500kWp, 0.8-1.0 €/Wp for 1-10MWp)"
+    )
+    
+
     # Battery configuration
     include_battery = st.checkbox(
         "Include Battery Storage",
@@ -232,16 +243,7 @@ with st.sidebar.expander("☀️ PV Installation Economics", expanded=True):
         battery_capacity_mwh = 0
         storage_hours = 0
     
-    # Cost parameters based on industry data
-    pv_cost_per_wp = st.slider(
-        "PV Cost (€/Wp)",
-        min_value=0.7,
-        max_value=1.2,
-        value=0.9,
-        step=0.05,
-        help="PV cost per Wp (0.7-0.8 €/Wp ground >500kWp, 0.8-1.0 €/Wp for 1-10MWp)"
-    )
-    
+   
     if include_battery:
         battery_cost_per_kwh = st.slider(
             "Battery Cost (€/kWh)",
