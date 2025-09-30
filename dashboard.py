@@ -176,7 +176,7 @@ with st.sidebar.expander("💰 Price", expanded=True):
 # PV Installation Economics Parameters
 with st.sidebar.expander("☀️ PV Installation", expanded=True):
     pv_project_years = st.slider(
-        "Project Years",
+        "Project Lifetime",
         min_value=10,
         max_value=30,
         value=20,
@@ -1161,7 +1161,7 @@ if run_simulation:
                         if include_battery:
                             st.write(f"• **Storage Hours**: {storage_hours}h")
                             st.write(f"• **Battery Capacity**: {battery_capacity_mwh:.1f} MWh")
-                        st.write(f"• **Project Years**: {pv_project_years} years")
+                        st.write(f"• **Project Lifetime**: {pv_project_years} years")
                     
                     with pv_breakdown_col2:
                         st.write(f"• **PV Cost**: {pv_cost_per_wp:.2f} €/Wp")
