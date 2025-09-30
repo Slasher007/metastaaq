@@ -1157,9 +1157,6 @@ if run_simulation:
                     with col4:
                         st.metric("**PV-specific Yearly GWh PCI CH₄**", f"{yearly_GWh_PCI_ch4_pv:.2f} GWh")
                     
-                    # Key PV Economics Metric
-                    st.metric("**€/MWh PCI CH₄ (PV-specific)**", f"{euro_per_MWh_PCI_CH4_pv:.2f} €/MWh")
-                    
                     # LCOE Calculation for CH4 (excluding methanation costs)
                     # Using formula: LCOE_CH4 = Sum(CAPEX_t + O&M_t)/(1+r)^t / Sum(CH4_Output_t)/(1+r)^t
                     discount_rate_decimal = discount_rate / 100
@@ -1177,8 +1174,12 @@ if run_simulation:
                     # Calculate LCOE in €/kg CH4
                     lcoe_ch4_euro_per_kg = discounted_costs / discounted_ch4_output if discounted_ch4_output > 0 else 0
                     
-                    # Display LCOE
-                    st.metric("**LCOE CH₄ (PV-specific, excl. methanation)**", f"{lcoe_ch4_euro_per_kg:.2f} €/kg CH₄")
+                    # Key PV Economics Metrics displayed side by side
+                    economics_col1, economics_col2 = st.columns(2)
+                    with economics_col1:
+                        st.metric("**€/MWh PCI CH₄ (PV-specific)**", f"{euro_per_MWh_PCI_CH4_pv:.2f} €/MWh")
+                    with economics_col2:
+                        st.metric("**LCOE CH₄ (PV-specific, excl. methanation)**", f"{lcoe_ch4_euro_per_kg:.2f} €/kg CH₄")
                     
                     # Additional PV Economics Details
                     st.markdown("**PV Installation Details:**")
