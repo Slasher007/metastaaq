@@ -238,7 +238,7 @@ with st.sidebar.expander("☀️ PV Installation", expanded=True):
         )
         # Battery capacity = PV power × storage hours
         battery_capacity_mwh = estimated_power_mwp * storage_hours
-        st.write(f"**Battery Capacity**: {battery_capacity_mwh:.2f} MWh ({storage_hours}h × {estimated_power_mwp:.2f} MWp)")
+        st.write(f"**Daily Battery Capacity**: {battery_capacity_mwh:.2f} MWh/day ({storage_hours}h × {estimated_power_mwp:.2f} MWp)")
     else:
         battery_capacity_mwh = 0
         storage_hours = 0
@@ -599,7 +599,13 @@ if run_simulation:
                     except FileNotFoundError as e:
                         st.warning(f"⚠️ One or more PV images not found: {str(e)}")
                     
-                    st.write("**🔋 Monthly Energy Coverage:**")
+                    # Update section header based on battery inclusion
+                    if include_battery and battery_capacity_mwh > 0:
+                        coverage_title = f"**🔋 Monthly Energy Coverage (with {storage_hours}h Daily Battery Storage):**"
+                    else:
+                        coverage_title = "**🔋 Monthly Energy Coverage:**"
+                    
+                    st.write(coverage_title)
                     
                     # Chart 2: Energy Coverage (Full Width)
                     pv_energy_kwh = {
@@ -622,17 +628,74 @@ if run_simulation:
                         for month in days_in_month
                     }
                     
-                    df_plot_data = pd.DataFrame({
-                        'Maximum Consumption (MWh)': pd.Series(max_monthly_consumption),
-                        'PV': pd.Series(pv_energy_mwh),
-                        'Spot': pd.Series(monthly_available_power)
-                    })
-                    
-                    df_plot_data['PPA'] = (
-                        df_plot_data['Maximum Consumption (MWh)'] - 
-                        df_plot_data['PV'] - 
-                        df_plot_data['Spot']
-                    ).clip(lower=0)
+                    # Calculate battery-stored energy if battery is included
+                    if include_battery and battery_capacity_mwh > 0:
+                        # Battery stores energy from cheapest spot hours, not PV excess
+                        pv_direct_mwh = {}
+                        spot_direct_mwh = {}
+                        spot_battery_mwh = {}
+                        battery_avg_price = {}
+                        
+                        for month, pv_energy in pv_energy_mwh.items():
+                            available_spot_power = monthly_available_power.get(month, 0)
+                            max_consumption = max_monthly_consumption.get(month, 0)
+                            
+                            # PV directly covers part of consumption (no change here)
+                            direct_pv_usage = min(pv_energy, max_consumption)
+                            
+                            # Remaining consumption after PV
+                            remaining_after_pv = max_consumption - direct_pv_usage
+                            
+                            if remaining_after_pv > 0 and available_spot_power > 0:
+                                # Calculate monthly battery capacity (daily capacity × days in month)
+                                days_in_current_month = days_in_month.get(month, 30)
+                                monthly_battery_capacity = battery_capacity_mwh * days_in_current_month
+                                
+                                # Split available spot energy between direct use and battery storage
+                                # Battery gets priority for cheapest hours (up to monthly cycling capacity)
+                                battery_energy = min(monthly_battery_capacity, available_spot_power, remaining_after_pv)
+                                direct_spot_energy = min(available_spot_power - battery_energy, remaining_after_pv - battery_energy)
+                                
+                                # Get average price for battery energy (cheapest hours)
+                                # For now, use target price as approximation (will be refined with actual price data)
+                                battery_avg_price[month] = target_price * 0.8  # Assume battery gets 20% cheaper energy
+                            else:
+                                battery_energy = 0
+                                direct_spot_energy = min(available_spot_power, remaining_after_pv) if remaining_after_pv > 0 else 0
+                                battery_avg_price[month] = target_price
+                            
+                            pv_direct_mwh[month] = direct_pv_usage
+                            spot_direct_mwh[month] = direct_spot_energy
+                            spot_battery_mwh[month] = battery_energy
+                        
+                        df_plot_data = pd.DataFrame({
+                            'Maximum Consumption (MWh)': pd.Series(max_monthly_consumption),
+                            'PV': pd.Series(pv_direct_mwh),
+                            'Spot Direct': pd.Series(spot_direct_mwh),
+                            'Spot Battery': pd.Series(spot_battery_mwh),
+                        })
+                        
+                        # Calculate remaining energy needed from PPA
+                        df_plot_data['Spot'] = df_plot_data['Spot Direct'] + df_plot_data['Spot Battery']
+                        df_plot_data['PPA'] = (
+                            df_plot_data['Maximum Consumption (MWh)'] - 
+                            df_plot_data['PV'] - 
+                            df_plot_data['Spot']
+                        ).clip(lower=0)
+                        
+                    else:
+                        # Original logic without battery
+                        df_plot_data = pd.DataFrame({
+                            'Maximum Consumption (MWh)': pd.Series(max_monthly_consumption),
+                            'PV': pd.Series(pv_energy_mwh),
+                            'Spot': pd.Series(monthly_available_power)
+                        })
+                        
+                        df_plot_data['PPA'] = (
+                            df_plot_data['Maximum Consumption (MWh)'] - 
+                            df_plot_data['PV'] - 
+                            df_plot_data['Spot']
+                        ).clip(lower=0)
                     
                     month_order = list(calendar.month_name)[1:]
                     df_plot_data = df_plot_data.reindex(month_order)
@@ -666,44 +729,97 @@ if run_simulation:
                                         pv_price, actual_spot_price, ppa_price)
                     
                     fig2, ax3 = plt.subplots(figsize=(12, 6))
-                    df_plot_data[['PV', 'Spot', 'PPA']].plot(
-                        kind='bar', stacked=True, ax=ax3, color=['blue', 'green', 'red']
+                    
+                    # Choose columns and colors based on battery inclusion
+                    if include_battery and battery_capacity_mwh > 0:
+                        plot_columns = ['PV', 'Spot Direct', 'Spot Battery', 'PPA']
+                        plot_colors = ['blue', 'darkgreen', 'lightgreen', 'red']
+                    else:
+                        plot_columns = ['PV', 'Spot', 'PPA']
+                        plot_colors = ['blue', 'green', 'red']
+                    
+                    df_plot_data[plot_columns].plot(
+                        kind='bar', stacked=True, ax=ax3, color=plot_colors
                     )
                     
                     # Add percentage labels inside bars with white text
                     for i, month in enumerate(df_plot_data.index):
-                        pv_val = df_plot_data.loc[month, 'PV']
-                        spot_val = df_plot_data.loc[month, 'Spot']
-                        ppa_val = df_plot_data.loc[month, 'PPA']
-                        
-                        # Use the sum of plotted segments as total (this is what's actually displayed in the chart)
-                        total_plotted = pv_val + spot_val + ppa_val
-                        
-                        if total_plotted > 0:
-                            # Calculate percentages based on plotted total
-                            pv_pct = (pv_val / total_plotted) * 100
-                            spot_pct = (spot_val / total_plotted) * 100
-                            ppa_pct = (ppa_val / total_plotted) * 100
+                        if include_battery and battery_capacity_mwh > 0:
+                            pv_val = df_plot_data.loc[month, 'PV']
+                            spot_direct_val = df_plot_data.loc[month, 'Spot Direct']
+                            spot_battery_val = df_plot_data.loc[month, 'Spot Battery']
+                            ppa_val = df_plot_data.loc[month, 'PPA']
                             
-                            # Position for text (middle of each bar segment)
-                            pv_mid = pv_val / 2
-                            spot_mid = pv_val + (spot_val / 2)
-                            ppa_mid = pv_val + spot_val + (ppa_val / 2)
+                            total_plotted = pv_val + spot_direct_val + spot_battery_val + ppa_val
                             
-                            # Add percentage text if segment is large enough to be visible (reduced threshold)
-                            if pv_pct > 3:  # Show if percentage > 3%
-                                ax3.text(i, pv_mid, f'{pv_pct:.1f}%', 
-                                        ha='center', va='center', color='white', fontweight='bold', fontsize=9)
+                            if total_plotted > 0:
+                                # Calculate percentages
+                                pv_pct = (pv_val / total_plotted) * 100
+                                spot_direct_pct = (spot_direct_val / total_plotted) * 100
+                                spot_battery_pct = (spot_battery_val / total_plotted) * 100
+                                ppa_pct = (ppa_val / total_plotted) * 100
+                                
+                                # Position for text (middle of each bar segment)
+                                pv_mid = pv_val / 2
+                                spot_direct_mid = pv_val + (spot_direct_val / 2)
+                                spot_battery_mid = pv_val + spot_direct_val + (spot_battery_val / 2)
+                                ppa_mid = pv_val + spot_direct_val + spot_battery_val + (ppa_val / 2)
+                                
+                                # Add percentage text if segment is large enough
+                                if pv_pct > 3:
+                                    ax3.text(i, pv_mid, f'{pv_pct:.1f}%', 
+                                            ha='center', va='center', color='white', fontweight='bold', fontsize=9)
+                                
+                                if spot_direct_pct > 3:
+                                    ax3.text(i, spot_direct_mid, f'{spot_direct_pct:.1f}%', 
+                                            ha='center', va='center', color='white', fontweight='bold', fontsize=9)
+                                
+                                if spot_battery_pct > 3:
+                                    ax3.text(i, spot_battery_mid, f'{spot_battery_pct:.1f}%', 
+                                            ha='center', va='center', color='white', fontweight='bold', fontsize=9)
+                                
+                                if ppa_pct > 3:
+                                    ax3.text(i, ppa_mid, f'{ppa_pct:.1f}%', 
+                                            ha='center', va='center', color='white', fontweight='bold', fontsize=9)
+                        else:
+                            # Original logic without battery
+                            pv_val = df_plot_data.loc[month, 'PV']
+                            spot_val = df_plot_data.loc[month, 'Spot']
+                            ppa_val = df_plot_data.loc[month, 'PPA']
                             
-                            if spot_pct > 3:
-                                ax3.text(i, spot_mid, f'{spot_pct:.1f}%', 
-                                        ha='center', va='center', color='white', fontweight='bold', fontsize=9)
+                            total_plotted = pv_val + spot_val + ppa_val
                             
-                            if ppa_pct > 3:
-                                ax3.text(i, ppa_mid, f'{ppa_pct:.1f}%', 
-                                        ha='center', va='center', color='white', fontweight='bold', fontsize=9)
+                            if total_plotted > 0:
+                                # Calculate percentages based on plotted total
+                                pv_pct = (pv_val / total_plotted) * 100
+                                spot_pct = (spot_val / total_plotted) * 100
+                                ppa_pct = (ppa_val / total_plotted) * 100
+                                
+                                # Position for text (middle of each bar segment)
+                                pv_mid = pv_val / 2
+                                spot_mid = pv_val + (spot_val / 2)
+                                ppa_mid = pv_val + spot_val + (ppa_val / 2)
+                                
+                                # Add percentage text if segment is large enough
+                                if pv_pct > 3:
+                                    ax3.text(i, pv_mid, f'{pv_pct:.1f}%', 
+                                            ha='center', va='center', color='white', fontweight='bold', fontsize=9)
+                                
+                                if spot_pct > 3:
+                                    ax3.text(i, spot_mid, f'{spot_pct:.1f}%', 
+                                            ha='center', va='center', color='white', fontweight='bold', fontsize=9)
+                                
+                                if ppa_pct > 3:
+                                    ax3.text(i, ppa_mid, f'{ppa_pct:.1f}%', 
+                                            ha='center', va='center', color='white', fontweight='bold', fontsize=9)
                     
-                    ax3.set_title(f'Monthly Energy Coverage')
+                    # Set chart title based on battery inclusion
+                    if include_battery and battery_capacity_mwh > 0:
+                        chart_title = f'Monthly Energy Coverage (incl. {battery_capacity_mwh:.1f} MWh Daily Battery Storage)'
+                    else:
+                        chart_title = 'Monthly Energy Coverage'
+                    
+                    ax3.set_title(chart_title)
                     ax3.set_xlabel('Month')
                     ax3.set_ylabel('Energy (MWh)')
                     ax3.tick_params(axis='x', rotation=45)
@@ -712,7 +828,12 @@ if run_simulation:
                     st.pyplot(fig2)
                     
                     # Create pie chart for energy coverage distribution
-                    st.write("**🥧 Energy Coverage Distribution:**")
+                    if include_battery and battery_capacity_mwh > 0:
+                        pie_section_title = f"**🥧 Energy Coverage Distribution (with {storage_hours}h Daily Battery):**"
+                    else:
+                        pie_section_title = "**🥧 Energy Coverage Distribution:**"
+                    
+                    st.write(pie_section_title)
                     
                     # Calculate total energy for each source
                     total_pv_energy = sum(df_plot_data['PV'])
@@ -737,9 +858,17 @@ if run_simulation:
                         euro_per_MWh_PCI_CH4_pv = 0
                     
                     # Create pie chart data
-                    pie_data = [total_pv_energy, total_spot_energy, total_ppa_energy]
-                    pie_labels = ['PV', 'Spot', 'PPA']
-                    pie_colors = ['blue', 'green', 'red']
+                    if include_battery and battery_capacity_mwh > 0:
+                        total_pv_energy = sum(df_plot_data['PV'])
+                        total_spot_direct_energy = sum(df_plot_data['Spot Direct'])
+                        total_spot_battery_energy = sum(df_plot_data['Spot Battery'])
+                        pie_data = [total_pv_energy, total_spot_direct_energy, total_spot_battery_energy, total_ppa_energy]
+                        pie_labels = ['PV', 'Spot Direct', 'Spot Battery', 'PPA']
+                        pie_colors = ['blue', 'darkgreen', 'lightgreen', 'red']
+                    else:
+                        pie_data = [total_pv_energy, total_spot_energy, total_ppa_energy]
+                        pie_labels = ['PV', 'Spot', 'PPA']
+                        pie_colors = ['blue', 'green', 'red']
                     
                     # Filter out zero values for cleaner pie chart
                     filtered_data = []
@@ -789,8 +918,13 @@ if run_simulation:
                                              edgecolor=filtered_colors[i], 
                                              alpha=0.9))
                         
-                        ax4.set_title(f'Energy Coverage Distribution', 
-                                     fontsize=14, fontweight='bold', pad=20)
+                        # Set pie chart title based on battery inclusion
+                        if include_battery and battery_capacity_mwh > 0:
+                            pie_chart_title = f'Energy Coverage Distribution\n(Daily Battery: {storage_hours}h = {battery_capacity_mwh:.1f} MWh/day)'
+                        else:
+                            pie_chart_title = 'Energy Coverage Distribution'
+                        
+                        ax4.set_title(pie_chart_title, fontsize=14, fontweight='bold', pad=20)
                         
                         # Equal aspect ratio ensures that pie is drawn as a circle
                         ax4.axis('equal')
@@ -818,10 +952,18 @@ if run_simulation:
                     
                     monthly_breakdown = []
                     for month in df_plot_data.index:
-                        pv_energy = df_plot_data.loc[month, 'PV']
-                        spot_energy = df_plot_data.loc[month, 'Spot']
-                        ppa_energy = df_plot_data.loc[month, 'PPA']
-                        total_energy = pv_energy + spot_energy + ppa_energy
+                        if include_battery and battery_capacity_mwh > 0:
+                            pv_energy = df_plot_data.loc[month, 'PV']
+                            spot_direct_energy = df_plot_data.loc[month, 'Spot Direct']
+                            spot_battery_energy = df_plot_data.loc[month, 'Spot Battery']
+                            spot_energy = spot_direct_energy + spot_battery_energy
+                            ppa_energy = df_plot_data.loc[month, 'PPA']
+                            total_energy = pv_energy + spot_direct_energy + spot_battery_energy + ppa_energy
+                        else:
+                            pv_energy = df_plot_data.loc[month, 'PV']
+                            spot_energy = df_plot_data.loc[month, 'Spot']
+                            ppa_energy = df_plot_data.loc[month, 'PPA']
+                            total_energy = pv_energy + spot_energy + ppa_energy
                         
                         # Get actual average price for this month from extended_info
                         month_spot_price = target_price  # fallback
@@ -830,67 +972,145 @@ if run_simulation:
                                 month_spot_price = extended_info[year_str][month]['actual_avg_price']
                                 break  # Use first year found (or could average across years)
                         
-                        # Calculate coverage ratios
-                        pv_ratio = (pv_energy / total_energy * 100) if total_energy > 0 else 0
-                        spot_ratio = (spot_energy / total_energy * 100) if total_energy > 0 else 0
-                        ppa_ratio = (ppa_energy / total_energy * 100) if total_energy > 0 else 0
-                        
-                        # Calculate costs using actual monthly spot price
-                        pv_cost = pv_energy * pv_price
-                        spot_cost = spot_energy * month_spot_price
-                        ppa_cost = ppa_energy * ppa_price
-                        total_cost = pv_cost + spot_cost + ppa_cost
-                        
-                        monthly_breakdown.append({
-                            'Month': month,
-                            'PV Energy (MWh)': f"{pv_energy:.1f}",
-                            'PV Coverage (%)': f"{pv_ratio:.1f}%",
-                            'PV Cost (€)': f"{pv_cost:,.0f}",
-                            'Spot Energy (MWh)': f"{spot_energy:.1f}",
-                            'Spot Coverage (%)': f"{spot_ratio:.1f}%",
-                            'Spot Cost (€)': f"{spot_cost:,.0f}",
-                            'PPA Energy (MWh)': f"{ppa_energy:.1f}",
-                            'PPA Coverage (%)': f"{ppa_ratio:.1f}%",
-                            'PPA Cost (€)': f"{ppa_cost:,.0f}",
-                            'Total Energy (MWh)': f"{total_energy:.1f}",
-                            'Total Cost (€)': f"{total_cost:,.0f}",
-                            'Avg Cost (€/MWh)': f"{total_cost/total_energy:.2f}" if total_energy > 0 else "0.00"
-                        })
+                        # Calculate coverage ratios and costs
+                        if include_battery and battery_capacity_mwh > 0:
+                            pv_ratio = (pv_energy / total_energy * 100) if total_energy > 0 else 0
+                            spot_direct_ratio = (spot_direct_energy / total_energy * 100) if total_energy > 0 else 0
+                            spot_battery_ratio = (spot_battery_energy / total_energy * 100) if total_energy > 0 else 0
+                            ppa_ratio = (ppa_energy / total_energy * 100) if total_energy > 0 else 0
+                            
+                            # Calculate costs using actual monthly spot price
+                            pv_cost = pv_energy * pv_price
+                            spot_direct_cost = spot_direct_energy * month_spot_price
+                            # Battery uses cheaper spot energy (estimate 20% discount)
+                            battery_month_price = battery_avg_price.get(month, month_spot_price)
+                            spot_battery_cost = spot_battery_energy * battery_month_price
+                            ppa_cost = ppa_energy * ppa_price
+                            total_cost = pv_cost + spot_direct_cost + spot_battery_cost + ppa_cost
+                            
+                            monthly_breakdown.append({
+                                'Month': month,
+                                'PV Energy (MWh)': f"{pv_energy:.1f}",
+                                'PV Coverage (%)': f"{pv_ratio:.1f}%",
+                                'PV Cost (€)': f"{pv_cost:,.0f}",
+                                'Spot Direct (MWh)': f"{spot_direct_energy:.1f}",
+                                'Spot Direct (%)': f"{spot_direct_ratio:.1f}%",
+                                'Spot Direct Cost (€)': f"{spot_direct_cost:,.0f}",
+                                'Spot Battery (MWh)': f"{spot_battery_energy:.1f}",
+                                'Spot Battery (%)': f"{spot_battery_ratio:.1f}%",
+                                'Spot Battery Cost (€)': f"{spot_battery_cost:,.0f}",
+                                'PPA Energy (MWh)': f"{ppa_energy:.1f}",
+                                'PPA Coverage (%)': f"{ppa_ratio:.1f}%",
+                                'PPA Cost (€)': f"{ppa_cost:,.0f}",
+                                'Total Energy (MWh)': f"{total_energy:.1f}",
+                                'Total Cost (€)': f"{total_cost:,.0f}",
+                                'Avg Cost (€/MWh)': f"{total_cost/total_energy:.2f}" if total_energy > 0 else "0.00"
+                            })
+                        else:
+                            # Original structure without battery
+                            pv_ratio = (pv_energy / total_energy * 100) if total_energy > 0 else 0
+                            spot_ratio = (spot_energy / total_energy * 100) if total_energy > 0 else 0
+                            ppa_ratio = (ppa_energy / total_energy * 100) if total_energy > 0 else 0
+                            
+                            # Calculate costs using actual monthly spot price
+                            pv_cost = pv_energy * pv_price
+                            spot_cost = spot_energy * month_spot_price
+                            ppa_cost = ppa_energy * ppa_price
+                            total_cost = pv_cost + spot_cost + ppa_cost
+                            
+                            monthly_breakdown.append({
+                                'Month': month,
+                                'PV Energy (MWh)': f"{pv_energy:.1f}",
+                                'PV Coverage (%)': f"{pv_ratio:.1f}%",
+                                'PV Cost (€)': f"{pv_cost:,.0f}",
+                                'Spot Energy (MWh)': f"{spot_energy:.1f}",
+                                'Spot Coverage (%)': f"{spot_ratio:.1f}%",
+                                'Spot Cost (€)': f"{spot_cost:,.0f}",
+                                'PPA Energy (MWh)': f"{ppa_energy:.1f}",
+                                'PPA Coverage (%)': f"{ppa_ratio:.1f}%",
+                                'PPA Cost (€)': f"{ppa_cost:,.0f}",
+                                'Total Energy (MWh)': f"{total_energy:.1f}",
+                                'Total Cost (€)': f"{total_cost:,.0f}",
+                                'Avg Cost (€/MWh)': f"{total_cost/total_energy:.2f}" if total_energy > 0 else "0.00"
+                            })
                     
                     breakdown_df = pd.DataFrame(monthly_breakdown)
                     
                     # Calculate yearly totals and averages
-                    total_pv_energy = sum(df_plot_data['PV'])
-                    total_spot_energy = sum(df_plot_data['Spot'])
-                    total_ppa_energy = sum(df_plot_data['PPA'])
-                    total_energy_year = total_pv_energy + total_spot_energy + total_ppa_energy
-                    
-                    total_pv_cost = total_pv_energy * pv_price
-                    total_spot_cost = total_spot_energy * actual_spot_price
-                    total_ppa_cost = total_ppa_energy * ppa_price
-                    total_cost_year = total_pv_cost + total_spot_cost + total_ppa_cost
-                    
-                    # Calculate yearly averages for percentages
-                    avg_pv_ratio = (total_pv_energy / total_energy_year * 100) if total_energy_year > 0 else 0
-                    avg_spot_ratio = (total_spot_energy / total_energy_year * 100) if total_energy_year > 0 else 0
-                    avg_ppa_ratio = (total_ppa_energy / total_energy_year * 100) if total_energy_year > 0 else 0
-                    
-                    # Add yearly average row
-                    yearly_average = {
-                        'Month': '📊 YEARLY TOTAL',
-                        'PV Energy (MWh)': f"{total_pv_energy:.1f}",
-                        'PV Coverage (%)': f"{avg_pv_ratio:.1f}%",
-                        'PV Cost (€)': f"{total_pv_cost:,.0f}",
-                        'Spot Energy (MWh)': f"{total_spot_energy:.1f}",
-                        'Spot Coverage (%)': f"{avg_spot_ratio:.1f}%",
-                        'Spot Cost (€)': f"{total_spot_cost:,.0f}",
-                        'PPA Energy (MWh)': f"{total_ppa_energy:.1f}",
-                        'PPA Coverage (%)': f"{avg_ppa_ratio:.1f}%",
-                        'PPA Cost (€)': f"{total_ppa_cost:,.0f}",
-                        'Total Energy (MWh)': f"{total_energy_year:.1f}",
-                        'Total Cost (€)': f"{total_cost_year:,.0f}",
-                        'Avg Cost (€/MWh)': f"{total_cost_year/total_energy_year:.2f}" if total_energy_year > 0 else "0.00"
-                    }
+                    if include_battery and battery_capacity_mwh > 0:
+                        total_pv_energy = sum(df_plot_data['PV'])
+                        total_spot_direct_energy = sum(df_plot_data['Spot Direct'])
+                        total_spot_battery_energy = sum(df_plot_data['Spot Battery'])
+                        total_spot_energy = total_spot_direct_energy + total_spot_battery_energy
+                        total_ppa_energy = sum(df_plot_data['PPA'])
+                        total_energy_year = total_pv_energy + total_spot_direct_energy + total_spot_battery_energy + total_ppa_energy
+                        
+                        total_pv_cost = total_pv_energy * pv_price
+                        total_spot_direct_cost = total_spot_direct_energy * actual_spot_price
+                        # Battery uses cheaper spot energy (average discount)
+                        avg_battery_discount = 0.8  # 20% discount estimate
+                        total_spot_battery_cost = total_spot_battery_energy * actual_spot_price * avg_battery_discount
+                        total_ppa_cost = total_ppa_energy * ppa_price
+                        total_cost_year = total_pv_cost + total_spot_direct_cost + total_spot_battery_cost + total_ppa_cost
+                        
+                        # Calculate yearly averages for percentages
+                        avg_pv_ratio = (total_pv_energy / total_energy_year * 100) if total_energy_year > 0 else 0
+                        avg_spot_direct_ratio = (total_spot_direct_energy / total_energy_year * 100) if total_energy_year > 0 else 0
+                        avg_spot_battery_ratio = (total_spot_battery_energy / total_energy_year * 100) if total_energy_year > 0 else 0
+                        avg_ppa_ratio = (total_ppa_energy / total_energy_year * 100) if total_energy_year > 0 else 0
+                        
+                        # Add yearly average row with battery breakdown
+                        yearly_average = {
+                            'Month': '📊 YEARLY TOTAL',
+                            'PV Energy (MWh)': f"{total_pv_energy:.1f}",
+                            'PV Coverage (%)': f"{avg_pv_ratio:.1f}%",
+                            'PV Cost (€)': f"{total_pv_cost:,.0f}",
+                            'Spot Direct (MWh)': f"{total_spot_direct_energy:.1f}",
+                            'Spot Direct (%)': f"{avg_spot_direct_ratio:.1f}%",
+                            'Spot Direct Cost (€)': f"{total_spot_direct_cost:,.0f}",
+                            'Spot Battery (MWh)': f"{total_spot_battery_energy:.1f}",
+                            'Spot Battery (%)': f"{avg_spot_battery_ratio:.1f}%",
+                            'Spot Battery Cost (€)': f"{total_spot_battery_cost:,.0f}",
+                            'PPA Energy (MWh)': f"{total_ppa_energy:.1f}",
+                            'PPA Coverage (%)': f"{avg_ppa_ratio:.1f}%",
+                            'PPA Cost (€)': f"{total_ppa_cost:,.0f}",
+                            'Total Energy (MWh)': f"{total_energy_year:.1f}",
+                            'Total Cost (€)': f"{total_cost_year:,.0f}",
+                            'Avg Cost (€/MWh)': f"{total_cost_year/total_energy_year:.2f}" if total_energy_year > 0 else "0.00"
+                        }
+                    else:
+                        # Original logic without battery
+                        total_pv_energy = sum(df_plot_data['PV'])
+                        total_spot_energy = sum(df_plot_data['Spot'])
+                        total_ppa_energy = sum(df_plot_data['PPA'])
+                        total_energy_year = total_pv_energy + total_spot_energy + total_ppa_energy
+                        
+                        total_pv_cost = total_pv_energy * pv_price
+                        total_spot_cost = total_spot_energy * actual_spot_price
+                        total_ppa_cost = total_ppa_energy * ppa_price
+                        total_cost_year = total_pv_cost + total_spot_cost + total_ppa_cost
+                        
+                        # Calculate yearly averages for percentages
+                        avg_pv_ratio = (total_pv_energy / total_energy_year * 100) if total_energy_year > 0 else 0
+                        avg_spot_ratio = (total_spot_energy / total_energy_year * 100) if total_energy_year > 0 else 0
+                        avg_ppa_ratio = (total_ppa_energy / total_energy_year * 100) if total_energy_year > 0 else 0
+                        
+                        # Add yearly average row
+                        yearly_average = {
+                            'Month': '📊 YEARLY TOTAL',
+                            'PV Energy (MWh)': f"{total_pv_energy:.1f}",
+                            'PV Coverage (%)': f"{avg_pv_ratio:.1f}%",
+                            'PV Cost (€)': f"{total_pv_cost:,.0f}",
+                            'Spot Energy (MWh)': f"{total_spot_energy:.1f}",
+                            'Spot Coverage (%)': f"{avg_spot_ratio:.1f}%",
+                            'Spot Cost (€)': f"{total_spot_cost:,.0f}",
+                            'PPA Energy (MWh)': f"{total_ppa_energy:.1f}",
+                            'PPA Coverage (%)': f"{avg_ppa_ratio:.1f}%",
+                            'PPA Cost (€)': f"{total_ppa_cost:,.0f}",
+                            'Total Energy (MWh)': f"{total_energy_year:.1f}",
+                            'Total Cost (€)': f"{total_cost_year:,.0f}",
+                            'Avg Cost (€/MWh)': f"{total_cost_year/total_energy_year:.2f}" if total_energy_year > 0 else "0.00"
+                        }
                     
                     # Add the yearly row to the dataframe
                     breakdown_df = pd.concat([breakdown_df, pd.DataFrame([yearly_average])], ignore_index=True)
