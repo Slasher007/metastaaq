@@ -1141,11 +1141,11 @@ if run_simulation:
                     with col1:
                         st.metric("**Total Yearly CH₄ Production**", f"{total_yearly_ch4_kg:,.0f} kg")
                     with col2:
-                        st.metric("**PV Energy Ratio**", f"{pv_energy_ratio:.1%}")
+                        st.metric("**PV Yearly Energy Ratio**", f"{pv_energy_ratio:.1%}")
                     with col3:
-                        st.metric("**PV-specific CH₄ Production**", f"{pv_ch4_production_kg:,.0f} kg")
+                        st.metric("**PV-specific Yearly CH₄ Production**", f"{pv_ch4_production_kg:,.0f} kg")
                     with col4:
-                        st.metric("**PV-specific GWh PCI CH₄**", f"{yearly_GWh_PCI_ch4_pv:.2f} GWh")
+                        st.metric("**PV-specific Yearly GWh PCI CH₄**", f"{yearly_GWh_PCI_ch4_pv:.2f} GWh")
                     
                     # Key PV Economics Metric
                     st.metric("**€/MWh PCI CH₄ (PV-specific)**", f"{euro_per_MWh_PCI_CH4_pv:.2f} €/MWh")
