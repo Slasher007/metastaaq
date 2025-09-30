@@ -294,6 +294,16 @@ with st.sidebar.expander("☀️ PV Installation", expanded=True):
         help="Annual operational expenditure as percentage of CAPEX (typical range: 1-2%)"
     )
     
+    # Discount rate for LCOE calculation
+    discount_rate = st.slider(
+        "Discount Rate (%)",
+        min_value=3.0,
+        max_value=12.0,
+        value=7.0,
+        step=0.5,
+        help="Discount rate for LCOE calculation (typical range: 5-10%)"
+    )
+    
     # Option to use calculated or manual OPEX
     use_calculated_opex = st.checkbox(
         "Use Calculated OPEX",
@@ -1150,6 +1160,26 @@ if run_simulation:
                     # Key PV Economics Metric
                     st.metric("**€/MWh PCI CH₄ (PV-specific)**", f"{euro_per_MWh_PCI_CH4_pv:.2f} €/MWh")
                     
+                    # LCOE Calculation for CH4 (excluding methanation costs)
+                    # Using formula: LCOE_CH4 = Sum(CAPEX_t + O&M_t)/(1+r)^t / Sum(CH4_Output_t)/(1+r)^t
+                    discount_rate_decimal = discount_rate / 100
+                    
+                    # Calculate discounted costs (CAPEX in year 0, OPEX annually)
+                    discounted_costs = pv_capex  # CAPEX at year 0 (already in present value)
+                    for year in range(1, pv_project_years + 1):
+                        discounted_costs += pv_opex / ((1 + discount_rate_decimal) ** year)
+                    
+                    # Calculate discounted CH4 output (assuming constant annual production)
+                    discounted_ch4_output = 0
+                    for year in range(1, pv_project_years + 1):
+                        discounted_ch4_output += pv_ch4_production_kg / ((1 + discount_rate_decimal) ** year)
+                    
+                    # Calculate LCOE in €/kg CH4
+                    lcoe_ch4_euro_per_kg = discounted_costs / discounted_ch4_output if discounted_ch4_output > 0 else 0
+                    
+                    # Display LCOE
+                    st.metric("**LCOE CH₄ (PV-specific, excl. methanation)**", f"{lcoe_ch4_euro_per_kg:.2f} €/kg CH₄")
+                    
                     # Additional PV Economics Details
                     st.markdown("**PV Installation Details:**")
                     pv_breakdown_col1, pv_breakdown_col2 = st.columns(2)
@@ -1162,6 +1192,7 @@ if run_simulation:
                             st.write(f"• **Storage Hours**: {storage_hours}h")
                             st.write(f"• **Battery Capacity**: {battery_capacity_mwh:.1f} MWh")
                         st.write(f"• **Project Lifetime**: {pv_project_years} years")
+                        st.write(f"• **Discount Rate**: {discount_rate:.1f}%")
                     
                     with pv_breakdown_col2:
                         st.write(f"• **PV Cost**: {pv_cost_per_wp:.2f} €/Wp")
