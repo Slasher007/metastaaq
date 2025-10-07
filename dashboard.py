@@ -694,11 +694,21 @@ if run_simulation:
                         ).clip(lower=0)
                         
                     else:
-                        # Original logic without battery
+                        # Logic without battery: cap spot by remaining service-ratio-limited consumption after PV
+                        pv_direct_no_batt = {}
+                        spot_no_batt = {}
+                        for month, pv_energy in pv_energy_mwh.items():
+                            max_cons = max_monthly_consumption.get(month, 0)
+                            pv_direct = min(pv_energy, max_cons)
+                            remaining = max_cons - pv_direct
+                            spot_capped = min(monthly_available_power.get(month, 0), remaining)
+                            pv_direct_no_batt[month] = pv_direct
+                            spot_no_batt[month] = spot_capped
+                        
                         df_plot_data = pd.DataFrame({
                             'Maximum Consumption (MWh)': pd.Series(max_monthly_consumption),
-                            'PV': pd.Series(pv_energy_mwh),
-                            'Spot': pd.Series(monthly_available_power)
+                            'PV': pd.Series(pv_direct_no_batt),
+                            'Spot': pd.Series(spot_no_batt)
                         })
                         
                         df_plot_data['PPA'] = (
@@ -998,6 +1008,10 @@ if run_simulation:
                             ppa_cost = ppa_energy * ppa_price
                             total_cost = pv_cost + spot_direct_cost + spot_battery_cost + ppa_cost
                             
+                            # Service ratio and shutdown
+                            service_ratio_pct = monthly_service_ratios.get(month, 1.0) * 100
+                            shutdown_hours = days_in_month.get(month, 30) * 24 * (1 - monthly_service_ratios.get(month, 1.0))
+                            
                             monthly_breakdown.append({
                                 'Month': month,
                                 'PV Energy (MWh)': f"{pv_energy:.1f}",
@@ -1014,7 +1028,9 @@ if run_simulation:
                                 'PPA Cost (€)': f"{ppa_cost:,.0f}",
                                 'Total Energy (MWh)': f"{total_energy:.1f}",
                                 'Total Cost (€)': f"{total_cost:,.0f}",
-                                'Avg Cost (€/MWh)': f"{total_cost/total_energy:.2f}" if total_energy > 0 else "0.00"
+                                'Avg Cost (€/MWh)': f"{total_cost/total_energy:.2f}" if total_energy > 0 else "0.00",
+                                'Service Ratio (%)': f"{service_ratio_pct:.1f}%",
+                                'Shutdown (h)': f"{shutdown_hours:.0f}"
                             })
                         else:
                             # Original structure without battery
@@ -1027,6 +1043,10 @@ if run_simulation:
                             spot_cost = spot_energy * month_spot_price
                             ppa_cost = ppa_energy * ppa_price
                             total_cost = pv_cost + spot_cost + ppa_cost
+                            
+                            # Service ratio and shutdown
+                            service_ratio_pct = monthly_service_ratios.get(month, 1.0) * 100
+                            shutdown_hours = days_in_month.get(month, 30) * 24 * (1 - monthly_service_ratios.get(month, 1.0))
                             
                             monthly_breakdown.append({
                                 'Month': month,
@@ -1041,7 +1061,9 @@ if run_simulation:
                                 'PPA Cost (€)': f"{ppa_cost:,.0f}",
                                 'Total Energy (MWh)': f"{total_energy:.1f}",
                                 'Total Cost (€)': f"{total_cost:,.0f}",
-                                'Avg Cost (€/MWh)': f"{total_cost/total_energy:.2f}" if total_energy > 0 else "0.00"
+                                'Avg Cost (€/MWh)': f"{total_cost/total_energy:.2f}" if total_energy > 0 else "0.00",
+                                'Service Ratio (%)': f"{service_ratio_pct:.1f}%",
+                                'Shutdown (h)': f"{shutdown_hours:.0f}"
                             })
                     
                     breakdown_df = pd.DataFrame(monthly_breakdown)
