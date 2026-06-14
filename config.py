@@ -48,7 +48,7 @@ DEFAULT_PARAMS = {
     "electrolyser_specific_consumption": 4.8,  # kWh/Nm³ - now calculated from power and h2_flowrate
     "service_ratio": 0.98,
     "pv_price": 60.0,
-    "ppa_price": 300.0,
+    "ppa_price": 0.0,
     "target_price": 30.0,
     "pv_project_years": 20,
     "pv_surface_hectares": 1.0,

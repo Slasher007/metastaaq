@@ -163,17 +163,17 @@ def create_service_ratios_chart(monthly_service_ratios):
     return fig_service
 
 
-def create_operating_hours_chart(df_result, extended_info, strategy_type, pv_energy_mwh=None, electrolyser_power=None, monthly_service_ratios=None):
+def create_operating_hours_chart(df_result, extended_info, strategy_type, pv_energy_mwh=None, electrolyser_power=None, monthly_service_ratios=None, integrate_ppa=True):
     """Create operating hours chart with PV/Spot/PPA breakdown"""
     fig1, ax1 = plt.subplots(figsize=(12, 6))
     df_plot = df_result.T
     monthly_avg = df_plot.mean(axis=1)
-    
+
     # Create separate dataframes for PV, spot and PPA hours
     pv_hours_data = pd.DataFrame(index=df_plot.index, columns=df_plot.columns, dtype=float)
     spot_hours_data = pd.DataFrame(index=df_plot.index, columns=df_plot.columns, dtype=float)
     ppa_hours_data = pd.DataFrame(index=df_plot.index, columns=df_plot.columns, dtype=float)
-    
+
     for year in df_plot.columns:
         for month in df_plot.index:
             # Calculate PV hours from energy if provided
@@ -182,11 +182,13 @@ def create_operating_hours_chart(df_result, extended_info, strategy_type, pv_ene
                 pv_hours_data.loc[month, year] = pv_hours
             else:
                 pv_hours_data.loc[month, year] = 0
-            
+
             if str(year) in extended_info and month in extended_info[str(year)]:
                 info = extended_info[str(year)][month]
-                spot_hours_data.loc[month, year] = info.get('spot_hours', 0)
-                ppa_hours_data.loc[month, year] = info.get('ppa_hours', 0)
+                raw_spot = info.get('spot_hours', 0)
+                raw_ppa = info.get('ppa_hours', 0) if integrate_ppa else 0
+                spot_hours_data.loc[month, year] = raw_spot + (info.get('ppa_hours', 0) if not integrate_ppa else 0)
+                ppa_hours_data.loc[month, year] = raw_ppa
             else:
                 # Fallback: use total hours for spot, no PPA
                 spot_hours_data.loc[month, year] = df_plot.loc[month, year]
@@ -216,7 +218,12 @@ def create_operating_hours_chart(df_result, extended_info, strategy_type, pv_ene
                     ppa_hours_data.loc[month, year] = 0.0
                 else:
                     remaining = forced_total - pv_int
-                    if grid_total > 0:
+                    if not integrate_ppa:
+                        # PPA disabled: all remaining hours go to spot
+                        pv_hours_data.loc[month, year] = float(pv_int)
+                        spot_hours_data.loc[month, year] = float(remaining)
+                        ppa_hours_data.loc[month, year] = 0.0
+                    elif grid_total > 0:
                         spot_prop = spot_val / grid_total
                         # Allocate integer hours proportionally
                         spot_int = int(round(remaining * spot_prop))

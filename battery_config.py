@@ -3,8 +3,10 @@ Battery Energy Storage System (BESS) Configuration
 Parametric time windows and battery parameters for PV-Battery-Electrolyser optimization
 """
 
-# Parametric Time Windows (hours in 24h format)
-# Defaults aligned with battery_integration operational windows (non-overlapping)
+# Global PV System toggle - when False, PV is completely disabled (battery + PPA only)
+# When True, PV charging window and PV profile generation are active
+DEFAULT_PV_SYSTEM_ENABLED = False
+
 # Parametric Time Windows (hours in 24h format)
 # Defaults aligned with battery_integration operational windows (non-overlapping)
 DEFAULT_TIME_WINDOWS = {

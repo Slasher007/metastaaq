@@ -43,6 +43,11 @@ def display_pv_images():
         st.warning("PV data not available yet.")
         return
     
+    # Check if PV is disabled
+    if not st.session_state.get('pv_enabled', False):
+        st.info("🔌 **PV system disabled** — running on battery + PPA only. No PV production.")
+        return
+    
     pv_energy_mwh = st.session_state.pv_energy_data['pv_energy_mwh']
     pv_params = st.session_state.pv_params
     

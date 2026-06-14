@@ -1156,6 +1156,39 @@ def create_price_parameters(strategy_type):
 def create_pv_installation_parameters(project_lifetime=None, discount_rate=None):
     """Create PV installation parameter inputs"""
     with st.sidebar.expander("☀️ PV Installation", expanded=False):
+        # --- PV System Enable/Disable Toggle ---
+        pv_enabled = st.toggle(
+            "Enable PV System",
+            value=st.session_state.get('pv_enabled', False),
+            key='pv_enabled',
+            help="Enable/disable the PV system entirely. When disabled, the system runs on battery + PPA only."
+        )
+        
+        if not pv_enabled:
+            st.info("🔌 PV disabled — system runs on **battery + PPA only**.")
+            # Return early with zeroed-out PV params
+            return {
+                'pv_enabled': False,
+                'pv_project_years': project_lifetime if project_lifetime is not None else DEFAULT_PARAMS["pv_project_years"],
+                'pv_surface_hectares': 0.0,
+                'power_density_mwp_per_ha': 0.0,
+                'estimated_power_mwp': 0.0,
+                'estimated_power_kwp': 0.0,
+                'pv_cost_per_wp': 0.0,
+                'use_calculated_capex': True,
+                'pv_capex': 0.0,
+                'opex_percentage': 0.0,
+                'discount_rate': discount_rate if discount_rate is not None else DEFAULT_PARAMS["discount_rate"],
+                'use_calculated_opex': True,
+                'pv_opex': 0.0,
+                'pv_maintenance_percentage': 0.0,
+                'pv_maintenance': 0.0,
+                'pv_capex_calculated': 0.0,
+                'lat': 48.9667,
+                'lon': 2.8500,
+                'loss': 14.0
+            }
+        
         # Project parameters are now coming from create_year_selection
         pv_project_years = project_lifetime if project_lifetime is not None else DEFAULT_PARAMS["pv_project_years"]
         
@@ -1311,6 +1344,7 @@ def create_pv_installation_parameters(project_lifetime=None, discount_rate=None)
         final_pv_capex = pv_capex
     
     return {
+        'pv_enabled': True,
         'pv_project_years': pv_project_years,
         'pv_surface_hectares': pv_surface_hectares,
         'power_density_mwp_per_ha': power_density_mwp_per_ha,

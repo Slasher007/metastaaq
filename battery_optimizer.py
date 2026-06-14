@@ -29,7 +29,7 @@ class BatteryOptimizer:
     """
     
     def __init__(self, battery_params=None, time_windows=None, electrolyser_params=None,
-                 penalty_params=None, pv_price=0.0):
+                 penalty_params=None, pv_price=0.0, ppa_price=0.0, grid_charge_use_ppa=False):
         """
         Initialize the battery optimizer
         
@@ -39,12 +39,16 @@ class BatteryOptimizer:
             electrolyser_params: Dictionary of electrolyser parameters
             penalty_params: Dictionary with penalty parameters
             pv_price: Price of PV electricity [€/MWh]
+            ppa_price: Price of PPA electricity [€/MWh] (used when grid_charge_use_ppa is True)
+            grid_charge_use_ppa: If True, grid charging cost uses PPA price instead of spot price
         """
         self.battery_params = battery_params or DEFAULT_BATTERY_PARAMS.copy()
         self.time_windows = time_windows or DEFAULT_TIME_WINDOWS.copy()
         self.electrolyser_params = electrolyser_params or DEFAULT_ELECTROLYSER_PARAMS.copy()
         self.penalty_params = penalty_params or PENALTY_PARAMS.copy()
         self.pv_price = pv_price
+        self.ppa_price = ppa_price
+        self.grid_charge_use_ppa = grid_charge_use_ppa
         
         # Calculate effective energy limits based on DoD
         self.E_min = self.battery_params["E_bat_max"] * self.battery_params["SoC_min"]
@@ -154,7 +158,8 @@ class BatteryOptimizer:
             # Cost of buying from grid
             # Only applies if window is grid_charging
             if window_type == 'grid_charging':
-                cost_grid = flows['battery_charge'] * spot_price
+                charge_price = self.ppa_price if self.grid_charge_use_ppa else spot_price
+                cost_grid = flows['battery_charge'] * charge_price
             else:
                 cost_grid = 0.0
             results['cost_charging'][t] = cost_grid

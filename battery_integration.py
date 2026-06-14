@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 
 from battery_config import (
     DEFAULT_BATTERY_PARAMS, DEFAULT_TIME_WINDOWS, DEFAULT_ELECTROLYSER_PARAMS,
-    DEFAULT_FINANCIAL_PARAMS,
+    DEFAULT_FINANCIAL_PARAMS, DEFAULT_PV_SYSTEM_ENABLED,
     validate_time_windows, calculate_bess_lcos
 )
 
@@ -274,7 +274,22 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         col1, col2 = st.columns([1, 2])
         
         with col1:
-            st.subheader("⚙️ Battery Configuration")
+            st.subheader("⚙️ System Configuration")
+            
+            # --- PV System Toggle ---
+            # Use unique key to avoid conflict with sidebar's pv_enabled widget
+            pv_system_enabled = st.toggle(
+                "☀️ PV System",
+                value=st.session_state.get('bat_pv_enabled', st.session_state.get('pv_enabled', DEFAULT_PV_SYSTEM_ENABLED)),
+                key='bat_pv_enabled',
+                help="Enable/disable the PV system entirely. When disabled, the system runs on battery + PPA only.",
+                on_change=reset_optimization
+            )
+            if not pv_system_enabled:
+                st.info("💡 PV disabled — system runs on **battery + PPA** only. Grid charging uses PPA price.")
+            st.markdown("---")
+            
+            st.subheader("🔋 Battery Parameters")
             
             # Use default capacity from configuration
             default_capacity = float(DEFAULT_BATTERY_PARAMS['E_bat_max'])
@@ -413,7 +428,13 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             ])
             
             with tw_tab1:
-                pv_charge_enabled = st.toggle("Activate/Deactivate PV Charging", value=DEFAULT_TIME_WINDOWS.get('pv_charge_enabled', True), key='pv_charge_enabled')
+                pv_charge_enabled = st.toggle(
+                    "Activate/Deactivate PV Charging", 
+                    value=DEFAULT_TIME_WINDOWS.get('pv_charge_enabled', True) and pv_system_enabled, 
+                    key='pv_charge_enabled',
+                    disabled=not pv_system_enabled,
+                    help="Enable PV charging window (only available when PV System is ON)"
+                )
                 col_a, col_b = st.columns(2)
                 with col_a:
                     st.number_input(
@@ -463,6 +484,18 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                     )
                 
                 st.caption("Buy from grid during low prices (can wrap midnight: 23-04 means 23:00-04:00).")
+                
+                # Grid charging price source selector
+                st.markdown("")
+                grid_charge_price_source = st.radio(
+                    "💲 Grid Charging Price Source",
+                    options=["Spot Price", "PPA Price"],
+                    index=0 if st.session_state.get('grid_charge_price_source', 'spot') == 'spot' else 1,
+                    key='grid_charge_price_source',
+                    horizontal=True,
+                    help="Spot Price: charge at market spot prices (arbitrage). PPA Price: charge at fixed PPA contract price.",
+                    disabled=not grid_charging_enabled,
+                )
             
             with tw_tab4:
                 electrolyser_enabled = st.toggle("Activate/Deactivate Supply to Electrolyser", value=DEFAULT_TIME_WINDOWS.get('electrolyser_enabled', True), key='electrolyser_enabled')
@@ -486,7 +519,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     
     # Add shaded regions for operational time windows (behind the data)
     # Get time windows from session state or use defaults (configured to avoid overlap)
-    pv_enabled = st.session_state.get('pv_charge_enabled', DEFAULT_TIME_WINDOWS.get('pv_charge_enabled', True))
+    pv_enabled = st.session_state.get('pv_charge_enabled', DEFAULT_TIME_WINDOWS.get('pv_charge_enabled', True)) and st.session_state.get('bat_pv_enabled', st.session_state.get('pv_enabled', DEFAULT_PV_SYSTEM_ENABLED))
     pv_start = st.session_state.get('pv_start', DEFAULT_TIME_WINDOWS['pv_charge_start'])
     pv_end = st.session_state.get('pv_end', DEFAULT_TIME_WINDOWS['pv_charge_end'])
     
@@ -735,7 +768,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         battery_params['cost_per_mwh'] = lcos_results['lcos_per_mwh']
         
         time_windows = DEFAULT_TIME_WINDOWS.copy()
-        time_windows['pv_charge_enabled'] = st.session_state.get('pv_charge_enabled', DEFAULT_TIME_WINDOWS.get('pv_charge_enabled', True))
+        time_windows['pv_charge_enabled'] = st.session_state.get('pv_charge_enabled', DEFAULT_TIME_WINDOWS.get('pv_charge_enabled', True)) and st.session_state.get('bat_pv_enabled', st.session_state.get('pv_enabled', DEFAULT_PV_SYSTEM_ENABLED))
         time_windows['pv_charge_start'] = st.session_state.get('pv_start', DEFAULT_TIME_WINDOWS['pv_charge_start'])
         time_windows['pv_charge_end'] = st.session_state.get('pv_end', DEFAULT_TIME_WINDOWS['pv_charge_end'])
         time_windows['sell_to_grid_enabled'] = st.session_state.get('sell_to_grid_enabled', DEFAULT_TIME_WINDOWS.get('sell_to_grid_enabled', True))
@@ -765,68 +798,73 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             pv_profile = None
             pv_params = st.session_state.get('pv_params', None)
             use_real_pv = False
+            pv_system_on = st.session_state.get('bat_pv_enabled', st.session_state.get('pv_enabled', DEFAULT_PV_SYSTEM_ENABLED))
             
-            # Check if PV parameters are available and valid
-            if pv_params is not None:
+            if not pv_system_on:
+                # PV system is disabled — use zero PV profile (battery + PPA only)
+                pv_profile = np.zeros(len(spot_prices))
+                use_real_pv = False
+                st.info("🔌 PV system disabled — running on **battery + PPA only**. No PV production used.")
+            elif pv_params is not None:
                 # Validate required PV parameters
-                    try:
-                        # Extract years from data for PVGIS query
-                        available_years = sorted(data_content['Annee'].unique())
-                        startyear = int(min(available_years)) if available_years else 2020
-                        endyear = int(max(available_years)) if available_years else 2024
-                        
-                        # Prepare PV parameters for load_pv_profile
-                        pv_params_dict = {
-                            'pv_surface_hectares': pv_params.get('pv_surface_hectares'),
-                            'power_density_mwp_per_ha': pv_params.get('power_density_mwp_per_ha'),
-                            'lat': pv_params.get('lat'),
-                            'lon': pv_params.get('lon'),
-                            'loss': pv_params.get('loss', 14)
-                        }
-                        
-                        # Validate parameter values
-                        if not all(isinstance(pv_params_dict[k], (int, float)) and pv_params_dict[k] > 0 
-                                  for k in ['pv_surface_hectares', 'power_density_mwp_per_ha', 'lat', 'lon']):
-                            raise ValueError("Invalid PV parameter values")
-                        
-                        # Generate realistic PV profile from PVGIS
-                        with st.spinner(f"🌞 Fetching real PV data from PVGIS (years {startyear}-{endyear})..."):
-                            data_content = load_pv_profile(
-                                data_content=data_content,
-                                pv_params=pv_params_dict,
-                                startyear=startyear,
-                                endyear=endyear
-                            )
-                        
-                        print('Total PV production:', data_content['PV_MW'].sum())
-                        print(data_content[['Date', 'Heure','Mois','Jours','PV_MW']][:24])
+                try:
+                    # Extract years from data for PVGIS query
+                    available_years = sorted(data_content['Annee'].unique())
+                    startyear = int(min(available_years)) if available_years else 2020
+                    endyear = int(max(available_years)) if available_years else 2024
+                    
+                    # Prepare PV parameters for load_pv_profile
+                    pv_params_dict = {
+                        'pv_surface_hectares': pv_params.get('pv_surface_hectares'),
+                        'power_density_mwp_per_ha': pv_params.get('power_density_mwp_per_ha'),
+                        'lat': pv_params.get('lat'),
+                        'lon': pv_params.get('lon'),
+                        'loss': pv_params.get('loss', 14)
+                    }
+                    
+                    # Validate parameter values
+                    if not all(isinstance(pv_params_dict[k], (int, float)) and pv_params_dict[k] > 0 
+                              for k in ['pv_surface_hectares', 'power_density_mwp_per_ha', 'lat', 'lon']):
+                        raise ValueError("Invalid PV parameter values")
+                    
+                    # Generate realistic PV profile from PVGIS
+                    with st.spinner(f"🌞 Fetching real PV data from PVGIS (years {startyear}-{endyear})..."):
+                        data_content = load_pv_profile(
+                            data_content=data_content,
+                            pv_params=pv_params_dict,
+                            startyear=startyear,
+                            endyear=endyear
+                        )
+                    
+                    print('Total PV production:', data_content['PV_MW'].sum())
+                    print(data_content[['Date', 'Heure','Mois','Jours','PV_MW']][:24])
 
-                        pv_profile = data_content['PV_MW'].values
+                    pv_profile = data_content['PV_MW'].values
 
-                        # Validate PV profile
-                        if pv_profile is None or len(pv_profile) == 0:
-                            raise ValueError("PV profile is empty")
+                    # Validate PV profile
+                    if pv_profile is None or len(pv_profile) == 0:
+                        raise ValueError("PV profile is empty")
+                    
+                    # Check if profile has variation (not constant)
+                    unique_values = len(np.unique(pv_profile))
+                    pv_min = pv_profile.min()
+                    pv_max = pv_profile.max()
+                    pv_mean = pv_profile.mean()
+                    
+                    if unique_values == 1:
+                        st.warning(f"⚠️ PV profile appears constant ({pv_mean:.2f} MW). This may indicate an issue with PVGIS data.")
+                    else:
+                        use_real_pv = True
+                        st.success(f"✅ Real PV data loaded: {len(pv_profile)} hours, {unique_values} unique values")
+                        st.info(f"📊 PV Profile range: {pv_min:.2f} - {pv_max:.2f} MW (avg: {pv_mean:.2f} MW, total: {pv_profile.sum():.1f} MWh)")
                         
-                        # Check if profile has variation (not constant)
-                        unique_values = len(np.unique(pv_profile))
-                        pv_min = pv_profile.min()
-                        pv_max = pv_profile.max()
-                        pv_mean = pv_profile.mean()
-                        
-                        if unique_values == 1:
-                            st.warning(f"⚠️ PV profile appears constant ({pv_mean:.2f} MW). This may indicate an issue with PVGIS data.")
-                        else:
-                            use_real_pv = True
-                            st.success(f"✅ Real PV data loaded: {len(pv_profile)} hours, {unique_values} unique values")
-                            st.info(f"📊 PV Profile range: {pv_min:.2f} - {pv_max:.2f} MW (avg: {pv_mean:.2f} MW, total: {pv_profile.sum():.1f} MWh)")
-                            
-                    except Exception as e:
-                        import traceback
-                        error_details = traceback.format_exc()
-                        st.error(f"❌ Error generating real PV profile from PVGIS: {str(e)}")
-                        with st.expander("🔍 Error details"):
-                            st.code(error_details)
-                        st.warning("⚠️ Falling back to typical (constant) PV profile...")
+                except Exception as e:
+                    import traceback
+                    error_details = traceback.format_exc()
+                    st.error(f"❌ Error generating real PV profile from PVGIS: {str(e)}")
+                    with st.expander("🔍 Error details"):
+                        st.code(error_details)
+                    st.warning("⚠️ Falling back to typical (constant) PV profile...")
             else:
                 # Fallback to typical profile if PV params not available
                 st.warning("⚠️ PV parameters not available in session state. Using typical (constant) PV profile.")
@@ -835,11 +873,14 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             st.session_state['battery_used_real_pv'] = use_real_pv
             
             # Create optimizer
+            grid_charge_use_ppa = st.session_state.get('grid_charge_price_source', 'spot') == 'PPA Price'
             optimizer = BatteryOptimizer(
                 battery_params=battery_params,
                 time_windows=time_windows,
                 electrolyser_params=electrolyser_params,
-                pv_price=pv_price
+                pv_price=pv_price,
+                ppa_price=ppa_price,
+                grid_charge_use_ppa=grid_charge_use_ppa
             )
 
             hours_of_day = data_content['Heure'].values
@@ -869,7 +910,10 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         
         # Show PV data source indicator
         used_real_pv = st.session_state.get('battery_used_real_pv', False)
-        if used_real_pv:
+        pv_system_on = st.session_state.get('bat_pv_enabled', st.session_state.get('pv_enabled', DEFAULT_PV_SYSTEM_ENABLED))
+        if not pv_system_on:
+            st.info("🔌 **PV system disabled** — running on battery + PPA only.")
+        elif used_real_pv:
             st.success("✅ Using **real PV production data** from PVGIS (location-specific, hourly variation)")
         else:
             st.warning("⚠️ Using **typical (constant) PV profile**. Configure PV parameters in main dashboard for real data.")
@@ -895,8 +939,10 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             df_window = df_results.iloc[start_idx:end_idx]
             
             ax.plot(range(len(df_window)), df_window['soc'] * 100, linewidth=2, color='blue', label='SoC')
-            ax.axhline(y=battery_params['SoC_min'] * 100, color='red', linestyle='--', label='Min SoC')
-            ax.axhline(y=battery_params['SoC_max'] * 100, color='green', linestyle='--', label='Max SoC')
+            soc_min = battery_params.get('SoC_min', DEFAULT_BATTERY_PARAMS['SoC_min']) * 100
+            soc_max = battery_params.get('SoC_max', DEFAULT_BATTERY_PARAMS['SoC_max']) * 100
+            ax.axhline(y=soc_min, color='red', linestyle='--', label='Min SoC')
+            ax.axhline(y=soc_max, color='green', linestyle='--', label='Max SoC')
             ax.set_xlabel('Hour', fontweight='bold')
             ax.set_ylabel('State of Charge (%)', fontweight='bold')
             n_data_points = len(df_results)
@@ -1157,7 +1203,8 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             fig_hourly_cost, ax = plt.subplots(figsize=(12, 6))
             
             # --- Read toggle states for selected windows ---
-            _pv_on   = st.session_state.get('pv_charge_enabled',    DEFAULT_TIME_WINDOWS.get('pv_charge_enabled', True))
+            _pv_sys_on = st.session_state.get('bat_pv_enabled', st.session_state.get('pv_enabled', DEFAULT_PV_SYSTEM_ENABLED))
+            _pv_on   = st.session_state.get('pv_charge_enabled',    DEFAULT_TIME_WINDOWS.get('pv_charge_enabled', True)) and _pv_sys_on
             _arb_on  = st.session_state.get('sell_to_grid_enabled', DEFAULT_TIME_WINDOWS.get('sell_to_grid_enabled', True))
             _grid_on = st.session_state.get('grid_charging_enabled',DEFAULT_TIME_WINDOWS.get('grid_charging_enabled', True))
             _ely_on  = st.session_state.get('electrolyser_enabled', DEFAULT_TIME_WINDOWS.get('electrolyser_enabled', True))
