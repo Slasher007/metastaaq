@@ -553,15 +553,21 @@ def _render_main_analysis(data_content, strategy_type, monthly_service_ratios, a
                         if strategy_type == "Target Price-Based":
                             st.markdown("#### 📊 Distribution of Consecutive Slot Lengths")
                             years_str = ", ".join(map(str, sorted(selected_years))) if selected_years else "All"
-                            st.markdown(f"**Daily Purchase Strategy** - Target Price: {target_price}€/MWh | Years: {years_str}")
-                            fig_week, fig_month = create_consecutive_slots_distributions(data_content, target_price)
+                            avg_sr_pct = computed_avg_service_ratio * 100 if computed_avg_service_ratio else 0
+                            context_str = f"SR: {avg_sr_pct:.1f}%  |  Years: {years_str}"
+                            st.markdown(f"**Daily Purchase Strategy** - Target Price: {target_price}€/MWh | {context_str}")
+                            fig_week, fig_month, fig_wom = create_consecutive_slots_distributions(data_content, target_price, context_str)
                             st.markdown("##### By Weekday")
                             st.pyplot(fig_week)
                             st.markdown("##### By Month")
                             st.pyplot(fig_month)
-                            st.markdown("##### Heatmap Matrix (Avg Length by Month/Weekday)")
-                            fig_heat = create_consecutive_slots_heatmap(data_content, target_price)
-                            st.pyplot(fig_heat)
+                            st.markdown("##### By Week of Month")
+                            st.pyplot(fig_wom)
+                            st.markdown("##### Heatmap 1 — Total operable hours (Month × Weekday)")
+                            fig_heat1, fig_heat2 = create_consecutive_slots_heatmap(data_content, target_price, context_str)
+                            st.pyplot(fig_heat1)
+                            st.markdown("##### Heatmap 2 — Number of separate operating windows (Month × Weekday)")
+                            st.pyplot(fig_heat2)
                         
                         # PV images already displayed above; skip duplicate here
                         

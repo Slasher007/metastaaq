@@ -760,13 +760,17 @@ def _compute_daily_consecutive_slots(data_content, target_price):
                 maximal_lengths.append(l)
 
         weekday = day_group['DayOfWeek'].iloc[0]
-        month = pd.to_datetime(date).month_name()
+        dt = pd.to_datetime(date)
+        month = dt.month_name()
+        week_of_month = (dt.day - 1) // 7 + 1  # 1-5
         results.append({
             'date': date,
             'weekday': weekday,
             'month': month,
+            'week_of_month': week_of_month,
             'max_consecutive': max(maximal_lengths) if maximal_lengths else 0,
             'total_hours': sum(maximal_lengths) if maximal_lengths else 0,
+            'num_windows': len(maximal_lengths),
             'window_lengths': maximal_lengths,
         })
 
@@ -813,18 +817,22 @@ def _boxplot_consecutive(ax, groups_data, labels, colors, target_price, xlabel, 
     ], loc='upper right', fontsize=9)
 
 
-def create_consecutive_slots_distributions(data_content, target_price):
+def create_consecutive_slots_distributions(data_content, target_price, context_str=''):
     """
-    Two boxplots showing the distribution of the longest consecutive window
-    (avg price ≤ target_price) per day, broken down by weekday and by month.
+    Three boxplots showing the distribution of the longest consecutive window
+    (avg price ≤ target_price) per day, broken down by weekday, by month, and
+    by week-of-month (1–5, pooled across all months).
+    context_str: optional subtitle appended to every chart title (e.g. "SR: 45%  |  Years: 2023, 2024").
     """
     daily = _compute_daily_consecutive_slots(data_content, target_price)
 
     max_by_weekday = defaultdict(list)
     max_by_month = defaultdict(list)
+    max_by_week_of_month = defaultdict(list)
     for d in daily:
         max_by_weekday[d['weekday']].append(d['max_consecutive'])
         max_by_month[d['month']].append(d['max_consecutive'])
+        max_by_week_of_month[d['week_of_month']].append(d['max_consecutive'])
 
     total_days = len(daily)
     overall_avg = np.mean([d['max_consecutive'] for d in daily]) if daily else 0
@@ -846,7 +854,8 @@ def create_consecutive_slots_distributions(data_content, target_price):
         ax_week, wd_data, wd_labels, colors7, target_price,
         xlabel='Weekday',
         title=(f'Longest Consecutive Operating Window by Weekday\n'
-               f'Target price ≤ {target_price} €/MWh'),
+               f'Target price ≤ {target_price} €/MWh'
+               + (f'  ·  {context_str}' if context_str else '')),
     )
     ax_week.text(0.02, 0.98, stats_text, transform=ax_week.transAxes,
                  va='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8), fontsize=9)
@@ -866,21 +875,98 @@ def create_consecutive_slots_distributions(data_content, target_price):
         ax_month, mo_data, mo_labels, colors12, target_price,
         xlabel='Month',
         title=(f'Longest Consecutive Operating Window by Month\n'
-               f'Target price ≤ {target_price} €/MWh'),
+               f'Target price ≤ {target_price} €/MWh'
+               + (f'  ·  {context_str}' if context_str else '')),
     )
     ax_month.text(0.02, 0.98, stats_text, transform=ax_month.transAxes,
                   va='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8), fontsize=9)
     plt.tight_layout()
 
-    return fig_week, fig_month
+    # --- Week-of-month chart ---
+    wom_present = sorted(max_by_week_of_month.keys())  # typically 1-5
+    wom_data = [max_by_week_of_month[w] for w in wom_present]
+    wom_labels = [f'Week {w}\n(n={len(max_by_week_of_month[w])})' for w in wom_present]
+    colors5 = plt.cm.Pastel1(range(len(wom_present)))
+
+    fig_wom, ax_wom = plt.subplots(figsize=(9, 5))
+    _boxplot_consecutive(
+        ax_wom, wom_data, wom_labels, colors5, target_price,
+        xlabel='Week of month',
+        title=(f'Longest Consecutive Operating Window by Week of Month\n'
+               f'Target price ≤ {target_price} €/MWh  (pooled across all months)'
+               + (f'  ·  {context_str}' if context_str else '')),
+    )
+    ax_wom.text(0.02, 0.98, stats_text, transform=ax_wom.transAxes,
+                va='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8), fontsize=9)
+    plt.tight_layout()
+
+    return fig_week, fig_month, fig_wom
 
 
-def create_consecutive_slots_heatmap(data_content, target_price):
+def _draw_slots_heatmap(ax, color_matrix, ann_matrix, day_counts, row_labels, col_labels,
+                        row_axis_label, title, target_price,
+                        color_label='Avg total operable hours / day',
+                        cell_main_suffix='h total', cell_sub_prefix='max',
+                        cmap_name='YlGn'):
+    """Shared rendering for the slots heatmaps.
+
+    color_matrix : 2-D array used for cell background colour.
+    ann_matrix   : 2-D array shown as the secondary (smaller) annotation.
+    cell_main_suffix : unit shown after the primary value  (e.g. 'h total').
+    cell_sub_prefix  : label shown before the secondary value (e.g. 'max').
     """
-    Heatmap (Month × Weekday) showing for each combination:
-      • colour  = average *total* operable hours per day
-      • top annotation = total hours (avg)
-      • bottom annotation = max consecutive window (avg)
+    n_rows, n_cols = color_matrix.shape
+    masked = np.ma.masked_invalid(color_matrix)
+    cmap = plt.cm.get_cmap(cmap_name).copy()
+    cmap.set_bad(color='#d0d0d0')
+    vmin = np.nanmin(color_matrix) if not np.all(np.isnan(color_matrix)) else 0
+    vmax = np.nanmax(color_matrix) if not np.all(np.isnan(color_matrix)) else 24
+    im = ax.imshow(masked, cmap=cmap, interpolation='nearest',
+                   vmin=vmin, vmax=vmax, aspect='auto')
+
+    cbar = plt.colorbar(im, ax=ax, fraction=0.025, pad=0.02)
+    cbar.set_label(color_label, rotation=270, labelpad=16, fontsize=9)
+
+    ax.set_xticks(np.arange(n_cols))
+    ax.set_xticklabels(col_labels, fontsize=10)
+    ax.set_yticks(np.arange(n_rows))
+    ax.set_yticklabels(row_labels, fontsize=10)
+    ax.set_xlabel('Weekday', fontsize=11, fontweight='bold')
+    ax.set_ylabel(row_axis_label, fontsize=11, fontweight='bold')
+    ax.set_title(
+        f'{title}  ·  Target price ≤ {target_price} €/MWh\n'
+        f'Cell: {cell_main_suffix} (avg)  ·  subscript: {cell_sub_prefix} (avg)',
+        fontweight='bold', fontsize=11, pad=12,
+    )
+
+    for i in range(n_rows):
+        for j in range(n_cols):
+            if np.isnan(color_matrix[i, j]):
+                ax.text(j, i, '—', ha='center', va='center', fontsize=9, color='#888')
+                continue
+            cell_val = color_matrix[i, j]
+            text_color = 'white' if cell_val > (vmin + (vmax - vmin) * 0.65) else 'black'
+            ax.text(j, i - 0.15, f'{cell_val:.0f} {cell_main_suffix}',
+                    ha='center', va='center', fontsize=10, fontweight='bold', color=text_color)
+            ax.text(j, i + 0.25, f'{cell_sub_prefix} {ann_matrix[i, j]:.0f} h',
+                    ha='center', va='center', fontsize=7.5, color=text_color, alpha=0.85)
+            ax.text(j + 0.42, i - 0.38, f'n={day_counts[i, j]}',
+                    ha='right', va='top', fontsize=6, color=text_color, alpha=0.7)
+
+    ax.set_xticks(np.arange(n_cols) - 0.5, minor=True)
+    ax.set_yticks(np.arange(n_rows) - 0.5, minor=True)
+    ax.grid(which='minor', color='white', linewidth=1.2)
+    ax.tick_params(which='minor', bottom=False, left=False)
+
+
+def create_consecutive_slots_heatmap(data_content, target_price, context_str=''):
+    """
+    Two Month × Weekday heatmaps:
+      1. Colour = avg total operable hours/day      (secondary text: avg max consecutive window)
+      2. Colour = avg number of separate windows/day (secondary text: avg total hours)
+
+    context_str: optional subtitle appended to every chart title.
+    Returns (fig_total_hours, fig_num_windows).
     """
     daily = _compute_daily_consecutive_slots(data_content, target_price)
 
@@ -894,77 +980,59 @@ def create_consecutive_slots_heatmap(data_content, target_price):
     n_mo, n_wd = len(month_order), len(weekday_order)
 
     # Accumulate per (month, weekday)
-    totals = defaultdict(list)
-    maxcons = defaultdict(list)
+    totals_acc = defaultdict(list)
+    maxcons_acc = defaultdict(list)
+    numwin_acc = defaultdict(list)
     for d in daily:
         key = (d['month'], d['weekday'])
-        totals[key].append(d['total_hours'])
-        maxcons[key].append(d['max_consecutive'])
+        totals_acc[key].append(d['total_hours'])
+        maxcons_acc[key].append(d['max_consecutive'])
+        numwin_acc[key].append(d['num_windows'])
 
     avg_total = np.full((n_mo, n_wd), np.nan)
     avg_max = np.full((n_mo, n_wd), np.nan)
-    day_counts = np.zeros((n_mo, n_wd), dtype=int)
+    avg_numwin = np.full((n_mo, n_wd), np.nan)
+    counts = np.zeros((n_mo, n_wd), dtype=int)
 
     for i, mo in enumerate(month_order):
         for j, wd in enumerate(weekday_order):
-            vals = totals[(mo, wd)]
+            vals = totals_acc[(mo, wd)]
             if vals:
                 avg_total[i, j] = np.mean(vals)
-                avg_max[i, j] = np.mean(maxcons[(mo, wd)])
-                day_counts[i, j] = len(vals)
+                avg_max[i, j] = np.mean(maxcons_acc[(mo, wd)])
+                avg_numwin[i, j] = np.mean(numwin_acc[(mo, wd)])
+                counts[i, j] = len(vals)
 
-    # ---- Plot ----
-    fig, ax = plt.subplots(figsize=(13, 6))
+    ctx = f'  ·  {context_str}' if context_str else ''
 
-    # Masked array so NaN cells appear grey
-    masked = np.ma.masked_invalid(avg_total)
-    cmap = plt.cm.YlGn.copy()
-    cmap.set_bad(color='#d0d0d0')
-
-    vmin = np.nanmin(avg_total) if not np.all(np.isnan(avg_total)) else 0
-    vmax = np.nanmax(avg_total) if not np.all(np.isnan(avg_total)) else 24
-    im = ax.imshow(masked, cmap=cmap, interpolation='nearest',
-                   vmin=vmin, vmax=vmax, aspect='auto')
-
-    cbar = plt.colorbar(im, ax=ax, fraction=0.03, pad=0.02)
-    cbar.set_label('Avg total operable hours / day', rotation=270, labelpad=16, fontsize=10)
-
-    ax.set_xticks(np.arange(n_wd))
-    ax.set_xticklabels(wd_labels, fontsize=11)
-    ax.set_yticks(np.arange(n_mo))
-    ax.set_yticklabels(mo_labels, fontsize=11)
-    ax.set_xlabel('Weekday', fontsize=12, fontweight='bold')
-    ax.set_ylabel('Month', fontsize=12, fontweight='bold')
-    ax.set_title(
-        f'Avg operable hours per day  ·  Target price ≤ {target_price} €/MWh\n'
-        f'Cell: total hours (avg)  |  max consecutive window (avg)',
-        fontweight='bold', fontsize=12, pad=14,
+    # ── Heatmap 1: colour = total operable hours ────────────────────────────
+    fig1, ax1 = plt.subplots(figsize=(13, 7))
+    _draw_slots_heatmap(
+        ax1, avg_total, avg_max, counts,
+        row_labels=mo_labels, col_labels=wd_labels,
+        row_axis_label='Month',
+        title=f'Total operable hours/day  —  Month × Weekday{ctx}',
+        target_price=target_price,
+        color_label='Avg total operable hours / day',
+        cell_main_suffix='h total',
+        cell_sub_prefix='max',
+        cmap_name='YlGn',
     )
-
-    # Cell annotations
-    for i in range(n_mo):
-        for j in range(n_wd):
-            if np.isnan(avg_total[i, j]):
-                ax.text(j, i, '—', ha='center', va='center', fontsize=9, color='#888')
-                continue
-            cell_val = avg_total[i, j]
-            # Choose text colour for contrast
-            text_color = 'white' if cell_val > (vmin + (vmax - vmin) * 0.65) else 'black'
-            # Main: total hours
-            ax.text(j, i - 0.15, f'{cell_val:.0f} h',
-                    ha='center', va='center', fontsize=10, fontweight='bold', color=text_color)
-            # Sub: max consecutive
-            ax.text(j, i + 0.25, f'max {avg_max[i, j]:.0f} h',
-                    ha='center', va='center', fontsize=7.5, color=text_color, alpha=0.85)
-            # Day count (tiny, top-right corner)
-            ax.text(j + 0.42, i - 0.38, f'n={day_counts[i, j]}',
-                    ha='right', va='top', fontsize=6, color=text_color, alpha=0.7)
-
-    # Grid lines between cells
-    ax.set_xticks(np.arange(n_wd) - 0.5, minor=True)
-    ax.set_yticks(np.arange(n_mo) - 0.5, minor=True)
-    ax.grid(which='minor', color='white', linewidth=1.2)
-    ax.tick_params(which='minor', bottom=False, left=False)
-
     plt.tight_layout()
-    return fig
+
+    # ── Heatmap 2: colour = number of separate windows ──────────────────────
+    fig2, ax2 = plt.subplots(figsize=(13, 7))
+    _draw_slots_heatmap(
+        ax2, avg_numwin, avg_total, counts,
+        row_labels=mo_labels, col_labels=wd_labels,
+        row_axis_label='Month',
+        title=f'Avg separate operating windows/day  —  Month × Weekday{ctx}',
+        target_price=target_price,
+        color_label='Avg number of separate windows / day',
+        cell_main_suffix='win',
+        cell_sub_prefix='total',
+        cmap_name='YlOrRd',
+    )
+    plt.tight_layout()
+
+    return fig1, fig2
