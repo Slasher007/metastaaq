@@ -564,9 +564,20 @@ def _render_main_analysis(data_content, strategy_type, monthly_service_ratios, a
                             st.markdown("##### By Week of Month")
                             st.pyplot(fig_wom)
                             st.markdown("##### Heatmap 1 — Total operable hours (Month × Weekday)")
+                            st.caption(
+                                "How many hours per day the electrolyzer *could* operate if all windows where the "
+                                "rolling average price ≤ target are used. Darker green = more available hours. "
+                                "Each cell also shows the longest single consecutive window (subscript)."
+                            )
                             fig_heat1, fig_heat2 = create_consecutive_slots_heatmap(data_content, target_price, context_str)
                             st.pyplot(fig_heat1)
                             st.markdown("##### Heatmap 2 — Number of separate operating windows (Month × Weekday)")
+                            st.caption(
+                                "How many *distinct* start/stop cycles are needed per day to capture all eligible hours. "
+                                "A value of 1 means one uninterrupted run; higher values mean the cheap hours are fragmented "
+                                "across disconnected slots — each requiring a separate ramp-up. "
+                                "Darker orange-red = more start/stop events. Each cell also shows the total operable hours (subscript)."
+                            )
                             st.pyplot(fig_heat2)
                         
                         # PV images already displayed above; skip duplicate here
