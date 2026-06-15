@@ -182,14 +182,25 @@ def main():
                             st.write("**📊 Available Hours per Month:**")
                         st.dataframe(df_result, width='stretch')
                         
-                        # Calculate PV energy production
-                        pv_energy_data = calculate_pv_energy_production(
-                            pv_params['pv_surface_hectares'], 
-                            pv_params['power_density_mwp_per_ha'],
-                            pv_params['lat'],
-                            pv_params['lon'],
-                            pv_params['loss']
-                        )
+                        # Calculate PV energy production (skip if PV disabled)
+                        if pv_params.get('pv_enabled', False):
+                            pv_energy_data = calculate_pv_energy_production(
+                                pv_params['pv_surface_hectares'], 
+                                pv_params['power_density_mwp_per_ha'],
+                                pv_params['lat'],
+                                pv_params['lon'],
+                                pv_params['loss']
+                            )
+                        else:
+                            pv_energy_data = {
+                                'estimated_power_mwp': 0.0,
+                                'estimated_power_kwp': 0.0,
+                                'pv_energy_mwh': {month: 0.0 for month in ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]},
+                                'annual_energy_mwh': 0.0,
+                                'capacity_factor': 0.0,
+                                'monthly_energy_mwh': [0.0] * 12,
+                                'hourly_profile_mw': []
+                            }
                         
                         # Calculate battery capacity if included
                         battery_capacity_mwh = 0
