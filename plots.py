@@ -777,6 +777,52 @@ def _compute_daily_consecutive_slots(data_content, target_price):
     return results
 
 
+def compute_real_service_ratio(data_content, target_price, min_slot_hours=1):
+    """
+    Real (realistic) service ratio for the Target Price strategy.
+
+    Only hours that belong to a consecutive window strictly longer than
+    `min_slot_hours` are counted — shorter windows are ignored because the
+    electrolyzer cannot operate economically in them.
+
+    Returns a dict with:
+        real_sr   – ratio of usable hours to total available hours (0–1)
+        theo_sr   – theoretical ratio (all windows, no minimum length filter)
+        total_available  – total data hours
+        total_real       – hours inside qualifying windows
+        total_theo       – hours inside any window (before length filter)
+    """
+    daily = _compute_daily_consecutive_slots(data_content, target_price)
+    if not daily:
+        return {'real_sr': 0.0, 'theo_sr': 0.0,
+                'total_available': 0, 'total_real': 0, 'total_theo': 0}
+
+    df = data_content.copy()
+    if df['Date'].dtype != 'datetime64[ns]':
+        df['Date'] = pd.to_datetime(df['Date'])
+    df['DateOnly'] = df['Date'].dt.date
+    total_available = sum(
+        len(g) for _, g in df.groupby('DateOnly') if len(g) >= 24
+    )
+
+    total_real = 0
+    total_theo = 0
+    for d in daily:
+        lengths = d['window_lengths']
+        total_theo += sum(lengths)
+        total_real += sum(l for l in lengths if l > min_slot_hours)
+
+    real_sr = total_real / total_available if total_available else 0.0
+    theo_sr = total_theo / total_available if total_available else 0.0
+    return {
+        'real_sr': real_sr,
+        'theo_sr': theo_sr,
+        'total_available': total_available,
+        'total_real': total_real,
+        'total_theo': total_theo,
+    }
+
+
 def _boxplot_consecutive(ax, groups_data, labels, colors, target_price, xlabel, title):
     """Draw a styled boxplot of max-consecutive-hours distributions."""
     bp = ax.boxplot(

@@ -46,7 +46,8 @@ from sidebar import (
 from plots import (
     create_monthly_price_analysis_plot, create_price_distribution_box_plot, create_price_distribution_by_hour_box_plot,
     create_service_ratios_chart, create_operating_hours_chart, create_energy_coverage_chart,
-    create_energy_distribution_pie_chart, create_consecutive_slots_distributions, create_consecutive_slots_heatmap
+    create_energy_distribution_pie_chart, create_consecutive_slots_distributions,
+    create_consecutive_slots_heatmap, compute_real_service_ratio
 )
 from calculations import (
     calculate_derived_parameters, calculate_monthly_ch4_production, calculate_pv_energy_production,
@@ -101,29 +102,29 @@ def main():
     #data_content['Week'] = ((day_of_month - 1) // 7).clip(upper=3) + 1
 
     
-    # Create sidebar widgets
+    # Create sidebar widgets — ordered by frequency of change
     selected_years, project_lifetime, discount_rate = create_year_selection(data_content)
-    
+
     # Filter data by selected years
     if selected_years:
         data_content = data_content[data_content['Annee'].isin(selected_years)]
-    
-    # Strategy selection before service ratios
-    electrolyser_power, h2_flowrate, electrolyser_specific_consumption, electrolyzer_econ = create_electrolyzer_parameters(project_lifetime, discount_rate)
-    ch4_flowrate, cons_spec_ch4, methanation_econ = create_methanation_parameters(electrolyser_power, electrolyser_specific_consumption, project_lifetime, discount_rate)
-    site_co2_econ = create_site_co2_parameters()
+
+    # ── Most-changed settings first ───────────────────────────────
     strategy_type = create_operation_strategy_selection()
-    
-    # Define strategies where service ratios are computed, not input
+
     computed_strategies = ["Target Price-Based", "Optimize Global Annual Service Ratio", "Target LCOCh4"]
-    
     if strategy_type in computed_strategies:
-        # For computed strategies, we might interpret 'computed_service_ratios' from session state if available
         preset = st.session_state.get('computed_service_ratios')
         monthly_service_ratios = create_monthly_service_ratios(allow_edit=False, preset_ratios=preset)
     else:
         monthly_service_ratios = create_monthly_service_ratios(allow_edit=True)
+
     target_prices, pv_price, ppa_price, go_enabled, go_cost_per_mwh = create_price_parameters(strategy_type)
+
+    # ── Equipment & economics (less frequently changed) ───────────
+    electrolyser_power, h2_flowrate, electrolyser_specific_consumption, electrolyzer_econ = create_electrolyzer_parameters(project_lifetime, discount_rate)
+    ch4_flowrate, cons_spec_ch4, methanation_econ = create_methanation_parameters(electrolyser_power, electrolyser_specific_consumption, project_lifetime, discount_rate)
+    site_co2_econ = create_site_co2_parameters()
     pv_params = create_pv_installation_parameters(project_lifetime, discount_rate)
     st.session_state.pv_params = pv_params
     # pv_enabled is already set by the toggle widget in create_pv_installation_parameters()
@@ -554,8 +555,35 @@ def _render_main_analysis(data_content, strategy_type, monthly_service_ratios, a
                             st.markdown("#### 📊 Distribution of Consecutive Slot Lengths")
                             years_str = ", ".join(map(str, sorted(selected_years))) if selected_years else "All"
                             avg_sr_pct = computed_avg_service_ratio * 100 if computed_avg_service_ratio else 0
-                            context_str = f"SR: {avg_sr_pct:.1f}%  |  Years: {years_str}"
+
+                            # Real SR: only windows strictly longer than 1 h count
+                            sr_stats = compute_real_service_ratio(data_content, target_price, min_slot_hours=1)
+                            real_sr_pct = sr_stats['real_sr'] * 100
+
+                            context_str = f"Strategy SR: {avg_sr_pct:.1f}%  |  Realistic SR: {real_sr_pct:.1f}%  |  Years: {years_str}"
                             st.markdown(f"**Daily Purchase Strategy** - Target Price: {target_price}€/MWh | {context_str}")
+
+                            col_sr1, col_sr2, col_sr3 = st.columns(3)
+                            col_sr1.metric(
+                                "Strategy SR",
+                                f"{avg_sr_pct:.1f}%",
+                                help="Service ratio delivered by the Target Price strategy: each month's hours are sorted by "
+                                     "price and the cheapest ones are selected until the cumulative average would exceed "
+                                     f"{target_price} €/MWh. This is what the LCOE calculation uses.",
+                            )
+                            col_sr2.metric(
+                                "Realistic SR (consecutive > 1 h)",
+                                f"{real_sr_pct:.1f}%",
+                                help=f"Hours that belong to consecutive time blocks where the block average price ≤ {target_price} €/MWh "
+                                     "AND the block lasts more than 1 h. This is how many hours the electrolyzer could realistically "
+                                     "operate given it must run in uninterrupted runs.",
+                            )
+                            col_sr3.metric(
+                                "Hours lost to short slots",
+                                f"{sr_stats['total_theo'] - sr_stats['total_real']:,} h",
+                                help="Hours that fall in valid-average windows but in runs of ≤ 1 h — the electrolyzer "
+                                     "cannot start and stop for a single hour, so these are wasted.",
+                            )
                             fig_week, fig_month, fig_wom = create_consecutive_slots_distributions(data_content, target_price, context_str)
                             st.markdown("##### By Weekday")
                             st.pyplot(fig_week)
@@ -567,7 +595,7 @@ def _render_main_analysis(data_content, strategy_type, monthly_service_ratios, a
                             st.caption(
                                 "How many hours per day the electrolyzer *could* operate if all windows where the "
                                 "rolling average price ≤ target are used. Darker green = more available hours. "
-                                "Each cell also shows the longest single consecutive window (subscript)."
+                                "Each cell also shows in smaller text the longest single consecutive window available that day."
                             )
                             fig_heat1, fig_heat2 = create_consecutive_slots_heatmap(data_content, target_price, context_str)
                             st.pyplot(fig_heat1)
@@ -576,7 +604,7 @@ def _render_main_analysis(data_content, strategy_type, monthly_service_ratios, a
                                 "How many *distinct* start/stop cycles are needed per day to capture all eligible hours. "
                                 "A value of 1 means one uninterrupted run; higher values mean the cheap hours are fragmented "
                                 "across disconnected slots — each requiring a separate ramp-up. "
-                                "Darker orange-red = more start/stop events. Each cell also shows the total operable hours (subscript)."
+                                "Darker orange-red = more start/stop events. Each cell also shows in smaller text the total operable hours for that day."
                             )
                             st.pyplot(fig_heat2)
                         
