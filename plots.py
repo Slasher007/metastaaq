@@ -73,7 +73,7 @@ def create_price_distribution_box_plot(data_content):
             box_labels.append(month_name)
 
     # Create the box plot
-    bp = ax_box.boxplot(box_data, labels=box_labels, patch_artist=True)
+    bp = ax_box.boxplot(box_data, tick_labels=box_labels, patch_artist=True)
 
     # Color the boxes with different colors
     colors = plt.cm.Set3(range(len(box_data)))
@@ -115,7 +115,7 @@ def create_price_distribution_by_hour_box_plot(data_content):
             box_labels.append(str(hour))
 
     # Create the box plot
-    bp = ax_box_hour.boxplot(box_data, labels=box_labels, patch_artist=True)
+    bp = ax_box_hour.boxplot(box_data, tick_labels=box_labels, patch_artist=True)
 
     # Color the boxes with different colors
     colors = plt.cm.Set3(range(len(box_data)))
@@ -647,7 +647,7 @@ def create_hourly_slots_by_weekday_boxplot(data_content, target_price):
             box_labels.append(f'{day_fr}\n(n=0)')
     
     # Create the boxplot
-    bp = ax.boxplot(box_data, labels=box_labels, patch_artist=True, 
+    bp = ax.boxplot(box_data, tick_labels=box_labels, patch_artist=True,
                     showmeans=True, meanline=True,
                     showfliers=False,  # Don't show outliers as default markers
                     boxprops=dict(facecolor='lightblue', alpha=0.5),
