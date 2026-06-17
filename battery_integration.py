@@ -737,7 +737,82 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     plt.tight_layout()
     st.pyplot(fig_price_hour)
     plt.close(fig_price_hour)
-    
+
+    # ── Spot price distribution by category (weekday / month) ────────────────
+    # Reuses the same scatter + mean/median line style as the hourly plot above.
+    def _scatter_distribution_by_category(category_values, prices, n_categories,
+                                          tick_labels, title, xlabel):
+        fig, ax = plt.subplots(figsize=(14, 6))
+        gradient = plt.cm.RdYlGn_r(np.linspace(0.2, 0.8, max(n_categories, 1)))
+
+        present_idx = []
+        means = []
+        medians = []
+        for cat in range(n_categories):
+            cat_prices = prices[category_values == cat]
+            if len(cat_prices) > 0:
+                x_positions = np.random.normal(cat, 0.15, size=len(cat_prices))
+                ax.scatter(x_positions, cat_prices, alpha=0.3, s=10,
+                           color='steelblue', edgecolors='none', zorder=2)
+                present_idx.append(cat)
+                means.append(np.mean(cat_prices))
+                medians.append(np.median(cat_prices))
+
+        # Color-code the mean markers by relative price level
+        if means:
+            sorted_means = sorted(means)
+            colors_for_means = []
+            for mean_val in means:
+                rank = sorted_means.index(mean_val)
+                color_idx = int((rank / max(len(sorted_means) - 1, 1)) * (len(gradient) - 1))
+                colors_for_means.append(gradient[color_idx])
+
+            # Mean line with color-coded segments
+            for i in range(len(present_idx) - 1):
+                ax.plot([present_idx[i], present_idx[i + 1]], [means[i], means[i + 1]],
+                        color=colors_for_means[i], linewidth=3, zorder=3)
+            ax.scatter(present_idx, means, color=colors_for_means, s=100,
+                       edgecolors='black', linewidths=1.5, zorder=4,
+                       marker='o', label='Mean Price')
+
+            # Median line
+            ax.plot(present_idx, medians, color='red', linewidth=2,
+                    linestyle='--', marker='s', markersize=6,
+                    label='Median Price', zorder=3)
+
+        ax.set_xticks(range(n_categories))
+        ax.set_xticklabels(tick_labels, rotation=45, ha='right')
+        ax.set_xlim(-0.5, n_categories - 0.5)
+        ax.set_xlabel(xlabel, fontsize=12, fontweight='bold')
+        ax.set_ylabel('Spot Price (€/MWh)', fontsize=12, fontweight='bold')
+        ax.set_title(title, fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3, axis='y')
+        ax.legend(loc='upper left', fontsize=9)
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    import calendar
+    df_dist = data_content.copy()
+    df_dist['Date'] = pd.to_datetime(df_dist['Date'])
+    weekday_values = df_dist['Date'].dt.dayofweek.values   # Monday=0 ... Sunday=6
+    month_values = (df_dist['Date'].dt.month - 1).values   # 0=January ... 11=December
+    prices = df_dist['Prix'].values
+
+    weekday_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday',
+                     'Friday', 'Saturday', 'Sunday']
+    month_names = [calendar.month_name[m] for m in range(1, 13)]
+
+    _scatter_distribution_by_category(
+        weekday_values, prices, 7, weekday_names,
+        f'Electricity Spot Price Distribution by Day of Week ({year_str})',
+        'Day of Week')
+
+    _scatter_distribution_by_category(
+        month_values, prices, 12, month_names,
+        f'Electricity Spot Price Distribution by Month of Year ({year_str})',
+        'Month')
+
     # Auto-run optimization on page load
     if 'battery_optimization_run' not in st.session_state:
         st.session_state['battery_optimization_run'] = False

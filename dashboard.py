@@ -307,11 +307,11 @@ def _render_main_analysis(data_content, strategy_type, monthly_service_ratios, a
     st.markdown("#### 📦 Price Distribution by Month (Box Plot)")
     fig_box = create_price_distribution_box_plot(data_content)
     st.pyplot(fig_box)
-    
+
     st.markdown("#### ⏰ Price Distribution by Hour (Box Plot)")
     fig_box_hour = create_price_distribution_by_hour_box_plot(data_content)
     st.pyplot(fig_box_hour)
-    
+
     if strategy_type == "Service Ratio-Based":
         st.markdown("#### 📅 Current Monthly Service Ratios")
         fig_service = create_service_ratios_chart(monthly_service_ratios)
