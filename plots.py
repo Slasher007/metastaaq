@@ -2,6 +2,7 @@
 Plotting functions for the MetaSTAAQ Dashboard
 """
 
+import matplotlib
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
@@ -963,7 +964,7 @@ def _draw_slots_heatmap(ax, color_matrix, ann_matrix, day_counts, row_labels, co
     """
     n_rows, n_cols = color_matrix.shape
     masked = np.ma.masked_invalid(color_matrix)
-    cmap = plt.cm.get_cmap(cmap_name).copy()
+    cmap = matplotlib.colormaps[cmap_name].copy()
     cmap.set_bad(color='#d0d0d0')
     vmin = np.nanmin(color_matrix) if not np.all(np.isnan(color_matrix)) else 0
     vmax = np.nanmax(color_matrix) if not np.all(np.isnan(color_matrix)) else 24
