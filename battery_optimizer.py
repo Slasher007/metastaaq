@@ -26,6 +26,7 @@ class BatteryOptimizer:
     - Evening arbitrage discharge (16:00-23:00)
     - Spot grid charging (23:00-05:00)
     - Morning electrolyser supply (05:00-10:00)
+    - Optional 2nd sell/charge windows for two full cycles per day
     """
     
     def __init__(self, battery_params=None, time_windows=None, electrolyser_params=None,
@@ -197,7 +198,11 @@ class BatteryOptimizer:
             return "pv_charge"
         elif tw.get("sell_to_grid_enabled", True) and is_hour_in_window(hour, tw["sell_to_grid_start"], tw["sell_to_grid_end"]):
             return "sell_to_grid"
+        elif tw.get("sell_to_grid2_enabled", False) and is_hour_in_window(hour, tw.get("sell_to_grid2_start", 0), tw.get("sell_to_grid2_end", 0)):
+            return "sell_to_grid"
         elif tw.get("grid_charging_enabled", True) and is_hour_in_window(hour, tw["grid_charging_start"], tw["grid_charging_end"]):
+            return "grid_charging"
+        elif tw.get("grid_charging2_enabled", False) and is_hour_in_window(hour, tw.get("grid_charging2_start", 0), tw.get("grid_charging2_end", 0)):
             return "grid_charging"
         else:
             return "idle"

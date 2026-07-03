@@ -29,6 +29,16 @@ DEFAULT_TIME_WINDOWS = {
     "electrolyser_enabled": False,
     "electrolyser_start": 6,   # 06:00 - Start electrolyser operation
     "electrolyser_end": 11,    # 11:00 - End electrolyser operation
+
+    # 5. Optional second daily cycle — lets the battery charge and discharge
+    #    twice per day (e.g. night charge -> morning peak sell, then
+    #    midday charge -> evening peak sell)
+    "sell_to_grid2_enabled": False,
+    "sell_to_grid2_start": 7,   # 07:00 - Start 2nd sell window (morning peak)
+    "sell_to_grid2_end": 10,    # 10:00 - End 2nd sell window
+    "grid_charging2_enabled": False,
+    "grid_charging2_start": 13, # 13:00 - Start 2nd charge window (midday solar dip)
+    "grid_charging2_end": 16,   # 16:00 - End 2nd charge window
 }
 
 # Electrolyser Parameters for Battery Supply

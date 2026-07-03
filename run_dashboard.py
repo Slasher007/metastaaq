@@ -26,7 +26,7 @@ def main():
         subprocess.run([
             sys.executable, "-m", "streamlit", "run", dashboard_path,
             "--server.address", "localhost",
-            "--server.port", "8501",
+            "--server.port", "8010",
             "--browser.gatherUsageStats", "false"
         ], check=True)
     except KeyboardInterrupt:

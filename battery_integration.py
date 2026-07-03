@@ -378,9 +378,9 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 ) / 100.0
             
             cycles_per_year = st.number_input(
-                "Expected Cycles per Year", 
-                min_value=50, max_value=500, value=int(DEFAULT_FINANCIAL_PARAMS['cycles_per_year']), step=1,
-                help="Assumed number of full discharge cycles per year for baseline LCOS",
+                "Expected Cycles per Year",
+                min_value=50, max_value=730, value=int(DEFAULT_FINANCIAL_PARAMS['cycles_per_year']), step=1,
+                help="Assumed number of full discharge cycles per year for baseline LCOS (365 = 1 cycle/day, 730 = 2 cycles/day)",
                 key='bat_cycles_per_year',
                 on_change=reset_optimization
             )
@@ -433,57 +433,116 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                     value=DEFAULT_TIME_WINDOWS.get('pv_charge_enabled', True) and pv_system_enabled, 
                     key='pv_charge_enabled',
                     disabled=not pv_system_enabled,
-                    help="Enable PV charging window (only available when PV System is ON)"
+                    help="Enable PV charging window (only available when PV System is ON)",
+                    on_change=reset_optimization
                 )
                 col_a, col_b = st.columns(2)
                 with col_a:
                     st.number_input(
                         "Start Hour", 0, 23, DEFAULT_TIME_WINDOWS['pv_charge_start'], 1, key='pv_start',
                         help="PV charging window start (e.g., 10 = 10:00)",
-                        disabled=not pv_charge_enabled
+                        disabled=not pv_charge_enabled,
+                        on_change=reset_optimization
                     )
                 with col_b:
                     st.number_input(
                         "End Hour", 0, 23, DEFAULT_TIME_WINDOWS['pv_charge_end'], 1, key='pv_end',
                         help="PV charging window end",
-                        disabled=not pv_charge_enabled
+                        disabled=not pv_charge_enabled,
+                        on_change=reset_optimization
                     )
                 st.caption("All PV production charges the battery. Excess PV is curtailed.")
             
             with tw_tab2:
-                sell_to_grid_enabled = st.toggle("Activate/Deactivate Sell to grid", value=DEFAULT_TIME_WINDOWS.get('sell_to_grid_enabled', True), key='sell_to_grid_enabled')
+                sell_to_grid_enabled = st.toggle("Activate/Deactivate Sell to grid", value=DEFAULT_TIME_WINDOWS.get('sell_to_grid_enabled', True), key='sell_to_grid_enabled', on_change=reset_optimization)
                 col_a, col_b = st.columns(2)
                 with col_a:
                     st.number_input(
                         "Start Hour", 0, 23, DEFAULT_TIME_WINDOWS['sell_to_grid_start'], 1, key='arb_start',
                         help="Arbitrage discharge start",
-                        disabled=not sell_to_grid_enabled
+                        disabled=not sell_to_grid_enabled,
+                        on_change=reset_optimization
                     )
                 with col_b:
                     st.number_input(
                         "End Hour", 0, 23, DEFAULT_TIME_WINDOWS['sell_to_grid_end'], 1, key='arb_end',
                         help="Arbitrage discharge end",
-                        disabled=not sell_to_grid_enabled
+                        disabled=not sell_to_grid_enabled,
+                        on_change=reset_optimization
                     )
                 st.caption("Sell stored battery energy to the grid at high prices.")
+
+                st.markdown("---")
+                sell_to_grid2_enabled = st.toggle(
+                    "➕ 2nd Discharge Window (2 cycles/day)",
+                    value=DEFAULT_TIME_WINDOWS.get('sell_to_grid2_enabled', False),
+                    key='sell_to_grid2_enabled',
+                    help="Add a second sell-to-grid window so the battery can discharge twice per day (pair it with a 2nd grid charging window)",
+                    on_change=reset_optimization
+                )
+                col_a2, col_b2 = st.columns(2)
+                with col_a2:
+                    st.number_input(
+                        "Start Hour (2nd)", 0, 23, DEFAULT_TIME_WINDOWS['sell_to_grid2_start'], 1, key='arb2_start',
+                        help="Second arbitrage discharge start",
+                        disabled=not sell_to_grid2_enabled,
+                        on_change=reset_optimization
+                    )
+                with col_b2:
+                    st.number_input(
+                        "End Hour (2nd)", 0, 23, DEFAULT_TIME_WINDOWS['sell_to_grid2_end'], 1, key='arb2_end',
+                        help="Second arbitrage discharge end",
+                        disabled=not sell_to_grid2_enabled,
+                        on_change=reset_optimization
+                    )
+                if sell_to_grid2_enabled:
+                    st.caption("💡 2-cycle mode: e.g. night charge → morning peak sell, midday charge → evening peak sell.")
             
             with tw_tab3:
-                grid_charging_enabled = st.toggle("Activate/Deactivate Grid Charging", value=DEFAULT_TIME_WINDOWS.get('grid_charging_enabled', True), key='grid_charging_enabled')
+                grid_charging_enabled = st.toggle("Activate/Deactivate Grid Charging", value=DEFAULT_TIME_WINDOWS.get('grid_charging_enabled', True), key='grid_charging_enabled', on_change=reset_optimization)
                 col_a, col_b = st.columns(2)
                 with col_a:
                     st.number_input(
                         "Start Hour", 0, 23, DEFAULT_TIME_WINDOWS['grid_charging_start'], 1, key='night_start',
                         help="Night charging window start",
-                        disabled=not grid_charging_enabled
+                        disabled=not grid_charging_enabled,
+                        on_change=reset_optimization
                     )
                 with col_b:
                     st.number_input(
                         "End Hour", 0, 23, DEFAULT_TIME_WINDOWS['grid_charging_end'], 1, key='night_end',
                         help="Night charging window end (can be < start for midnight wrap)",
-                        disabled=not grid_charging_enabled
+                        disabled=not grid_charging_enabled,
+                        on_change=reset_optimization
                     )
-                
+
                 st.caption("Buy from grid during low prices (can wrap midnight: 23-04 means 23:00-04:00).")
+
+                st.markdown("---")
+                grid_charging2_enabled = st.toggle(
+                    "➕ 2nd Charging Window (2 cycles/day)",
+                    value=DEFAULT_TIME_WINDOWS.get('grid_charging2_enabled', False),
+                    key='grid_charging2_enabled',
+                    help="Add a second grid charging window so the battery can charge twice per day (pair it with a 2nd sell-to-grid window)",
+                    on_change=reset_optimization
+                )
+                col_a2, col_b2 = st.columns(2)
+                with col_a2:
+                    st.number_input(
+                        "Start Hour (2nd)", 0, 23, DEFAULT_TIME_WINDOWS['grid_charging2_start'], 1, key='night2_start',
+                        help="Second grid charging window start",
+                        disabled=not grid_charging2_enabled,
+                        on_change=reset_optimization
+                    )
+                with col_b2:
+                    st.number_input(
+                        "End Hour (2nd)", 0, 23, DEFAULT_TIME_WINDOWS['grid_charging2_end'], 1, key='night2_end',
+                        help="Second grid charging window end (can be < start for midnight wrap)",
+                        disabled=not grid_charging2_enabled,
+                        on_change=reset_optimization
+                    )
+                if grid_charging2_enabled:
+                    st.caption("💡 Typical 2nd charge slot: midday solar dip (e.g. 13:00-16:00) before the evening peak.")
                 
                 # Grid charging price source selector
                 st.markdown("")
@@ -495,22 +554,25 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                     horizontal=True,
                     help="Spot Price: charge at market spot prices (arbitrage). PPA Price: charge at fixed PPA contract price.",
                     disabled=not grid_charging_enabled,
+                    on_change=reset_optimization,
                 )
             
             with tw_tab4:
-                electrolyser_enabled = st.toggle("Activate/Deactivate Supply to Electrolyser", value=DEFAULT_TIME_WINDOWS.get('electrolyser_enabled', True), key='electrolyser_enabled')
+                electrolyser_enabled = st.toggle("Activate/Deactivate Supply to Electrolyser", value=DEFAULT_TIME_WINDOWS.get('electrolyser_enabled', True), key='electrolyser_enabled', on_change=reset_optimization)
                 col_a, col_b = st.columns(2)
                 with col_a:
                     st.number_input(
                         "Start Hour", 0, 23, DEFAULT_TIME_WINDOWS['electrolyser_start'], 1, key='ely_start',
                         help="Electrolyser supply window start",
-                        disabled=not electrolyser_enabled
+                        disabled=not electrolyser_enabled,
+                        on_change=reset_optimization
                     )
                 with col_b:
                     st.number_input(
                         "End Hour", 0, 23, DEFAULT_TIME_WINDOWS['electrolyser_end'], 1, key='ely_end',
                         help="Electrolyser supply window end",
-                        disabled=not electrolyser_enabled
+                        disabled=not electrolyser_enabled,
+                        on_change=reset_optimization
                     )
                 st.caption("Discharge battery to supply the electrolyser.")
     
@@ -526,38 +588,50 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     arb_enabled = st.session_state.get('sell_to_grid_enabled', DEFAULT_TIME_WINDOWS.get('sell_to_grid_enabled', True))
     arb_start = st.session_state.get('arb_start', DEFAULT_TIME_WINDOWS['sell_to_grid_start'])
     arb_end = st.session_state.get('arb_end', DEFAULT_TIME_WINDOWS['sell_to_grid_end'])
-    
+
+    arb2_enabled = st.session_state.get('sell_to_grid2_enabled', DEFAULT_TIME_WINDOWS.get('sell_to_grid2_enabled', False))
+    arb2_start = st.session_state.get('arb2_start', DEFAULT_TIME_WINDOWS['sell_to_grid2_start'])
+    arb2_end = st.session_state.get('arb2_end', DEFAULT_TIME_WINDOWS['sell_to_grid2_end'])
+
     night_enabled = st.session_state.get('grid_charging_enabled', DEFAULT_TIME_WINDOWS.get('grid_charging_enabled', True))
     night_start = st.session_state.get('night_start', DEFAULT_TIME_WINDOWS['grid_charging_start'])
     night_end = st.session_state.get('night_end', DEFAULT_TIME_WINDOWS['grid_charging_end'])
-    
+
+    night2_enabled = st.session_state.get('grid_charging2_enabled', DEFAULT_TIME_WINDOWS.get('grid_charging2_enabled', False))
+    night2_start = st.session_state.get('night2_start', DEFAULT_TIME_WINDOWS['grid_charging2_start'])
+    night2_end = st.session_state.get('night2_end', DEFAULT_TIME_WINDOWS['grid_charging2_end'])
+
     ely_enabled = st.session_state.get('electrolyser_enabled', DEFAULT_TIME_WINDOWS.get('electrolyser_enabled', True))
     ely_start = st.session_state.get('ely_start', DEFAULT_TIME_WINDOWS['electrolyser_start'])
     ely_end = st.session_state.get('ely_end', DEFAULT_TIME_WINDOWS['electrolyser_end'])
-    
+
+    def _shade_window(ax, start, end, color, alpha=0.15):
+        """Shade an inclusive [start, end] hour window; handles midnight wrap."""
+        if start > end:
+            ax.axvspan(start - 0.5, 23.5 + 0.5, alpha=alpha, color=color, zorder=1)
+            ax.axvspan(-0.5, end + 0.5, alpha=alpha, color=color, zorder=1)
+        else:
+            ax.axvspan(start - 0.5, end + 0.5, alpha=alpha, color=color, zorder=1)
+
     # PV Charging window [start, end] inclusive -> shade [start-0.5, end+0.5]
     if pv_enabled:
-        ax_price.axvspan(pv_start - 0.5, pv_end + 0.5, alpha=0.15, color='gold', zorder=1)
-    
-    # Sell to grid (Arbitrage) window [start, end] inclusive
+        _shade_window(ax_price, pv_start, pv_end, 'gold')
+
+    # Sell to grid (Arbitrage) windows [start, end] inclusive
     if arb_enabled:
-        ax_price.axvspan(arb_start - 0.5, arb_end + 0.5, alpha=0.15, color='green', zorder=1)
-    
-    # Buy from grid (Night/Spot Charging) window - may wrap around midnight
+        _shade_window(ax_price, arb_start, arb_end, 'green')
+    if arb2_enabled:
+        _shade_window(ax_price, arb2_start, arb2_end, 'green')
+
+    # Buy from grid (Night/Spot Charging) windows - may wrap around midnight
     if night_enabled:
-        if night_start > night_end:
-            # Wraps around midnight (e.g., 23-04)
-            # Shade from start-0.5 to 23.5 (end of hour 23)
-            ax_price.axvspan(night_start - 0.5, 23.5 + 0.5, alpha=0.15, color='red', zorder=1) # Covers start to 23
-            # Shade from -0.5 (start of hour 0) to end+0.5
-            ax_price.axvspan(-0.5, night_end + 0.5, alpha=0.15, color='red', zorder=1)
-        else:
-            # Same day
-            ax_price.axvspan(night_start - 0.5, night_end + 0.5, alpha=0.15, color='red', zorder=1)
-    
+        _shade_window(ax_price, night_start, night_end, 'red')
+    if night2_enabled:
+        _shade_window(ax_price, night2_start, night2_end, 'red')
+
     # Supply to Electrolyser window
     if ely_enabled:
-        ax_price.axvspan(ely_start - 0.5, ely_end + 0.5, alpha=0.15, color='purple', zorder=1)
+        _shade_window(ax_price, ely_start, ely_end, 'purple')
     
     # Prepare data for scatter plot by hour
     means = []
@@ -628,7 +702,18 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             night_center = (night_start + night_end + 1) / 2
         ax_price.text(night_center, text_y_position, 'Grid Charging',
                      ha='center', va='top', fontsize=10, fontweight='bold',
-                     color='darkred', bbox=dict(boxstyle='round,pad=0.5', 
+                     color='darkred', bbox=dict(boxstyle='round,pad=0.5',
+                     facecolor='white', edgecolor='darkred', alpha=0.8), zorder=5)
+
+    # 2nd Grid Charging window (cycle 2)
+    if night2_enabled:
+        if night2_start > night2_end:
+            night2_center = (night2_end + 1) / 2
+        else:
+            night2_center = (night2_start + night2_end + 1) / 2
+        ax_price.text(night2_center, text_y_position, 'Grid Charging\n(2nd)',
+                     ha='center', va='top', fontsize=10, fontweight='bold',
+                     color='darkred', bbox=dict(boxstyle='round,pad=0.5',
                      facecolor='white', edgecolor='darkred', alpha=0.8), zorder=5)
     
     # Supply to Electrolyser - center in electrolyser window
@@ -650,78 +735,62 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
     # Sell to grid - center in arbitrage window
     if arb_enabled:
         arb_center = (arb_start + arb_end + 1) / 2
-        ax_price.text(arb_center, text_y_position, 'Sell to grid', 
+        ax_price.text(arb_center, text_y_position, 'Sell to grid',
                      ha='center', va='top', fontsize=10, fontweight='bold',
-                     color='darkgreen', bbox=dict(boxstyle='round,pad=0.5', 
+                     color='darkgreen', bbox=dict(boxstyle='round,pad=0.5',
+                     facecolor='white', edgecolor='darkgreen', alpha=0.8), zorder=5)
+
+    # 2nd Sell to grid window (cycle 2)
+    if arb2_enabled:
+        arb2_center = (arb2_start + arb2_end + 1) / 2
+        ax_price.text(arb2_center, text_y_position, 'Sell to grid\n(2nd)',
+                     ha='center', va='top', fontsize=10, fontweight='bold',
+                     color='darkgreen', bbox=dict(boxstyle='round,pad=0.5',
                      facecolor='white', edgecolor='darkgreen', alpha=0.8), zorder=5)
     
     # Add statistics box: average price per operational window
     stats_text = 'Avg per Window:\n'
-    
+
+    def _window_mask(start, end):
+        """Boolean mask for hours in an inclusive window; handles midnight wrap."""
+        if start > end:
+            return (data_content['Heure'] >= start) | (data_content['Heure'] <= end)
+        return (data_content['Heure'] >= start) & (data_content['Heure'] <= end)
+
     # PV Charging
     if pv_enabled:
-        pv_data = data_content[(data_content['Heure'] >= pv_start) & (data_content['Heure'] <= pv_end)]
+        pv_data = data_content[_window_mask(pv_start, pv_end)]
         if len(pv_data) > 0:
             stats_text += f'☀ PV: {pv_data["Prix"].mean():.1f} €/MWh\n'
-    
-    # Sell to Grid (Arbitrage)
-    if arb_enabled:
-        arb_data = data_content[(data_content['Heure'] >= arb_start) & (data_content['Heure'] <= arb_end)]
+
+    # Sell to Grid (Arbitrage) — combines both windows when 2nd cycle is active
+    if arb_enabled or arb2_enabled:
+        arb_mask = pd.Series(False, index=data_content.index)
+        if arb_enabled:
+            arb_mask |= _window_mask(arb_start, arb_end)
+        if arb2_enabled:
+            arb_mask |= _window_mask(arb2_start, arb2_end)
+        arb_data = data_content[arb_mask]
         if len(arb_data) > 0:
             stats_text += f'💰 Sell: {arb_data["Prix"].mean():.1f} €/MWh\n'
-    
-    # Grid Charging (Night) — handles midnight wrap
-    if night_enabled:
-        if night_start > night_end:
-            night_data = data_content[(data_content['Heure'] >= night_start) | (data_content['Heure'] <= night_end)]
-        else:
-            night_data = data_content[(data_content['Heure'] >= night_start) & (data_content['Heure'] <= night_end)]
+
+    # Grid Charging — combines both windows when 2nd cycle is active
+    if night_enabled or night2_enabled:
+        night_mask = pd.Series(False, index=data_content.index)
+        if night_enabled:
+            night_mask |= _window_mask(night_start, night_end)
+        if night2_enabled:
+            night_mask |= _window_mask(night2_start, night2_end)
+        night_data = data_content[night_mask]
         if len(night_data) > 0:
             stats_text += f'🔌 Grid: {night_data["Prix"].mean():.1f} €/MWh\n'
-    
+
     # Supply to Electrolyser
     if ely_enabled:
-        ely_data = data_content[(data_content['Heure'] >= ely_start) & (data_content['Heure'] <= ely_end)]
+        ely_data = data_content[_window_mask(ely_start, ely_end)]
         if len(ely_data) > 0:
             stats_text += f'🔋 Ely: {ely_data["Prix"].mean():.1f} €/MWh\n'
-    
-    # Global statistics
-    overall_avg = data_content['Prix'].mean()
-    overall_min = data_content['Prix'].min()
-    overall_max = data_content['Prix'].max()
-    stats_text += f'──\nGlobal:\n'
-    stats_text += f'Avg: {overall_avg:.1f} | Min: {overall_min:.1f} | Max: {overall_max:.1f} €/MWh'
-    
-    # Add statistics box: average price per operational window
-    stats_text = 'Avg per Window:\n'
-    
-    # PV Charging
-    if pv_enabled:
-        pv_data = data_content[(data_content['Heure'] >= pv_start) & (data_content['Heure'] <= pv_end)]
-        if len(pv_data) > 0:
-            stats_text += f'☀ PV: {pv_data["Prix"].mean():.1f} €/MWh\n'
-    
-    # Sell to Grid (Arbitrage)
-    if arb_enabled:
-        arb_data = data_content[(data_content['Heure'] >= arb_start) & (data_content['Heure'] <= arb_end)]
-        if len(arb_data) > 0:
-            stats_text += f'💰 Sell: {arb_data["Prix"].mean():.1f} €/MWh\n'
-    
-    # Grid Charging (Night) — handles midnight wrap
-    if night_enabled:
-        if night_start > night_end:
-            night_data = data_content[(data_content['Heure'] >= night_start) | (data_content['Heure'] <= night_end)]
-        else:
-            night_data = data_content[(data_content['Heure'] >= night_start) & (data_content['Heure'] <= night_end)]
-        if len(night_data) > 0:
-            stats_text += f'🔌 Grid: {night_data["Prix"].mean():.1f} €/MWh\n'
-    
-    # Supply to Electrolyser
-    if ely_enabled:
-        ely_data = data_content[(data_content['Heure'] >= ely_start) & (data_content['Heure'] <= ely_end)]
-        if len(ely_data) > 0:
-            stats_text += f'🔋 Ely: {ely_data["Prix"].mean():.1f} €/MWh\n'
-    
+
     # Global statistics
     overall_avg = data_content['Prix'].mean()
     overall_min = data_content['Prix'].min()
@@ -849,9 +918,15 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         time_windows['sell_to_grid_enabled'] = st.session_state.get('sell_to_grid_enabled', DEFAULT_TIME_WINDOWS.get('sell_to_grid_enabled', True))
         time_windows['sell_to_grid_start'] = st.session_state.get('arb_start', DEFAULT_TIME_WINDOWS['sell_to_grid_start'])
         time_windows['sell_to_grid_end'] = st.session_state.get('arb_end', DEFAULT_TIME_WINDOWS['sell_to_grid_end'])
+        time_windows['sell_to_grid2_enabled'] = st.session_state.get('sell_to_grid2_enabled', DEFAULT_TIME_WINDOWS.get('sell_to_grid2_enabled', False))
+        time_windows['sell_to_grid2_start'] = st.session_state.get('arb2_start', DEFAULT_TIME_WINDOWS['sell_to_grid2_start'])
+        time_windows['sell_to_grid2_end'] = st.session_state.get('arb2_end', DEFAULT_TIME_WINDOWS['sell_to_grid2_end'])
         time_windows['grid_charging_enabled'] = st.session_state.get('grid_charging_enabled', DEFAULT_TIME_WINDOWS.get('grid_charging_enabled', True))
         time_windows['grid_charging_start'] = st.session_state.get('night_start', DEFAULT_TIME_WINDOWS['grid_charging_start'])
         time_windows['grid_charging_end'] = st.session_state.get('night_end', DEFAULT_TIME_WINDOWS['grid_charging_end'])
+        time_windows['grid_charging2_enabled'] = st.session_state.get('grid_charging2_enabled', DEFAULT_TIME_WINDOWS.get('grid_charging2_enabled', False))
+        time_windows['grid_charging2_start'] = st.session_state.get('night2_start', DEFAULT_TIME_WINDOWS['grid_charging2_start'])
+        time_windows['grid_charging2_end'] = st.session_state.get('night2_end', DEFAULT_TIME_WINDOWS['grid_charging2_end'])
         time_windows['electrolyser_enabled'] = st.session_state.get('electrolyser_enabled', DEFAULT_TIME_WINDOWS.get('electrolyser_enabled', True))
         time_windows['electrolyser_start'] = st.session_state.get('ely_start', DEFAULT_TIME_WINDOWS['electrolyser_start'])
         time_windows['electrolyser_end'] = st.session_state.get('ely_end', DEFAULT_TIME_WINDOWS['electrolyser_end'])
@@ -1281,31 +1356,45 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             _pv_sys_on = st.session_state.get('bat_pv_enabled', st.session_state.get('pv_enabled', DEFAULT_PV_SYSTEM_ENABLED))
             _pv_on   = st.session_state.get('pv_charge_enabled',    DEFAULT_TIME_WINDOWS.get('pv_charge_enabled', True)) and _pv_sys_on
             _arb_on  = st.session_state.get('sell_to_grid_enabled', DEFAULT_TIME_WINDOWS.get('sell_to_grid_enabled', True))
+            _arb2_on = st.session_state.get('sell_to_grid2_enabled', DEFAULT_TIME_WINDOWS.get('sell_to_grid2_enabled', False))
             _grid_on = st.session_state.get('grid_charging_enabled',DEFAULT_TIME_WINDOWS.get('grid_charging_enabled', True))
+            _grid2_on = st.session_state.get('grid_charging2_enabled', DEFAULT_TIME_WINDOWS.get('grid_charging2_enabled', False))
             _ely_on  = st.session_state.get('electrolyser_enabled', DEFAULT_TIME_WINDOWS.get('electrolyser_enabled', True))
 
             _pv_s    = st.session_state.get('pv_start',    DEFAULT_TIME_WINDOWS['pv_charge_start'])
             _pv_e    = st.session_state.get('pv_end',      DEFAULT_TIME_WINDOWS['pv_charge_end'])
             _arb_s   = st.session_state.get('arb_start',   DEFAULT_TIME_WINDOWS['sell_to_grid_start'])
             _arb_e   = st.session_state.get('arb_end',     DEFAULT_TIME_WINDOWS['sell_to_grid_end'])
+            _arb2_s  = st.session_state.get('arb2_start',  DEFAULT_TIME_WINDOWS['sell_to_grid2_start'])
+            _arb2_e  = st.session_state.get('arb2_end',    DEFAULT_TIME_WINDOWS['sell_to_grid2_end'])
             _ngt_s   = st.session_state.get('night_start', DEFAULT_TIME_WINDOWS['grid_charging_start'])
             _ngt_e   = st.session_state.get('night_end',   DEFAULT_TIME_WINDOWS['grid_charging_end'])
+            _ngt2_s  = st.session_state.get('night2_start', DEFAULT_TIME_WINDOWS['grid_charging2_start'])
+            _ngt2_e  = st.session_state.get('night2_end',  DEFAULT_TIME_WINDOWS['grid_charging2_end'])
             _ely_s   = st.session_state.get('ely_start',   DEFAULT_TIME_WINDOWS['electrolyser_start'])
             _ely_e   = st.session_state.get('ely_end',     DEFAULT_TIME_WINDOWS['electrolyser_end'])
 
+            def _shade_cost_window(start, end, color):
+                """Shade an inclusive hour window on the cost chart; handles midnight wrap."""
+                if start > end:
+                    ax.axvspan(start - 0.5, 23.5, alpha=0.08, color=color, zorder=0, label='_nolegend_')
+                    ax.axvspan(-0.5, end + 0.5, alpha=0.08, color=color, zorder=0, label='_nolegend_')
+                else:
+                    ax.axvspan(start - 0.5, end + 0.5, alpha=0.08, color=color, zorder=0, label='_nolegend_')
+
             # --- Background shading for active windows ---
             if _pv_on:
-                ax.axvspan(_pv_s - 0.5, _pv_e + 0.5, alpha=0.08, color='gold', zorder=0, label='_nolegend_')
+                _shade_cost_window(_pv_s, _pv_e, 'gold')
             if _arb_on:
-                ax.axvspan(_arb_s - 0.5, _arb_e + 0.5, alpha=0.08, color='green', zorder=0, label='_nolegend_')
+                _shade_cost_window(_arb_s, _arb_e, 'green')
+            if _arb2_on:
+                _shade_cost_window(_arb2_s, _arb2_e, 'green')
             if _grid_on:
-                if _ngt_s > _ngt_e:  # wraps midnight
-                    ax.axvspan(_ngt_s - 0.5, 23.5, alpha=0.08, color='red', zorder=0, label='_nolegend_')
-                    ax.axvspan(-0.5, _ngt_e + 0.5, alpha=0.08, color='red', zorder=0, label='_nolegend_')
-                else:
-                    ax.axvspan(_ngt_s - 0.5, _ngt_e + 0.5, alpha=0.08, color='red', zorder=0, label='_nolegend_')
+                _shade_cost_window(_ngt_s, _ngt_e, 'red')
+            if _grid2_on:
+                _shade_cost_window(_ngt2_s, _ngt2_e, 'red')
             if _ely_on:
-                ax.axvspan(_ely_s - 0.5, _ely_e + 0.5, alpha=0.08, color='purple', zorder=0, label='_nolegend_')
+                _shade_cost_window(_ely_s, _ely_e, 'purple')
 
             # --- Bars: costs DOWN (negative), revenue UP (positive) ---
             if _grid_on:
@@ -1579,8 +1668,10 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         
         # --- Read toggle states (same keys used in chart above) ---
         _kpi_pv_on   = st.session_state.get('pv_charge_enabled',    DEFAULT_TIME_WINDOWS.get('pv_charge_enabled', True))
-        _kpi_arb_on  = st.session_state.get('sell_to_grid_enabled', DEFAULT_TIME_WINDOWS.get('sell_to_grid_enabled', True))
-        _kpi_grid_on = st.session_state.get('grid_charging_enabled',DEFAULT_TIME_WINDOWS.get('grid_charging_enabled', True))
+        _kpi_arb_on  = (st.session_state.get('sell_to_grid_enabled', DEFAULT_TIME_WINDOWS.get('sell_to_grid_enabled', True))
+                        or st.session_state.get('sell_to_grid2_enabled', DEFAULT_TIME_WINDOWS.get('sell_to_grid2_enabled', False)))
+        _kpi_grid_on = (st.session_state.get('grid_charging_enabled', DEFAULT_TIME_WINDOWS.get('grid_charging_enabled', True))
+                        or st.session_state.get('grid_charging2_enabled', DEFAULT_TIME_WINDOWS.get('grid_charging2_enabled', False)))
         _kpi_ely_on  = st.session_state.get('electrolyser_enabled', DEFAULT_TIME_WINDOWS.get('electrolyser_enabled', True))
 
         cash_totals = st.session_state.get('battery_cash_totals')
