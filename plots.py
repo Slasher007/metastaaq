@@ -826,7 +826,7 @@ def compute_real_service_ratio(data_content, target_price, min_slot_hours=1):
 def _boxplot_consecutive(ax, groups_data, labels, colors, target_price, xlabel, title):
     """Draw a styled boxplot of max-consecutive-hours distributions."""
     bp = ax.boxplot(
-        groups_data, labels=labels, patch_artist=True,
+        groups_data, tick_labels=labels, patch_artist=True,
         showmeans=True, meanline=True, showfliers=False,
         boxprops=dict(facecolor='lightblue', alpha=0.5),
         medianprops=dict(color='crimson', linewidth=2.5),
