@@ -171,14 +171,28 @@ def main():
     with st.sidebar.expander("💰 Sell to grid", expanded=False):
         time_windows['sell_to_grid_enabled'] = st.toggle("Activate Sell to grid", value=DEFAULT_TIME_WINDOWS.get('sell_to_grid_enabled', True))
         time_windows['sell_to_grid_start'] = st.slider(
-            "Sell to grid Start (hour)", 0, 23, DEFAULT_TIME_WINDOWS.get('sell_to_grid_start', 18), 1,
-            help="Start of evening arbitrage discharge", disabled=not time_windows['sell_to_grid_enabled']
+            "Sell to grid Start (hour)", 0, 23, DEFAULT_TIME_WINDOWS.get('sell_to_grid_start', 7), 1,
+            help="Start of cycle-1 discharge (morning peak, after night charging)", disabled=not time_windows['sell_to_grid_enabled']
         )
         time_windows['sell_to_grid_end'] = st.slider(
-            "Sell to grid End (hour)", 0, 23, DEFAULT_TIME_WINDOWS.get('sell_to_grid_end', 23), 1,
-            help="End of evening arbitrage discharge", disabled=not time_windows['sell_to_grid_enabled']
+            "Sell to grid End (hour)", 0, 23, DEFAULT_TIME_WINDOWS.get('sell_to_grid_end', 10), 1,
+            help="End of cycle-1 discharge (morning peak)", disabled=not time_windows['sell_to_grid_enabled']
         )
-    
+        st.markdown("---")
+        time_windows['sell_to_grid2_enabled'] = st.toggle(
+            "➕ 2nd Discharge Window (2 cycles/day)",
+            value=DEFAULT_TIME_WINDOWS.get('sell_to_grid2_enabled', True),
+            help="Second sell-to-grid window so the battery discharges twice per day (after the 2nd charging window)"
+        )
+        time_windows['sell_to_grid2_start'] = st.slider(
+            "Sell to grid Start 2nd (hour)", 0, 23, DEFAULT_TIME_WINDOWS.get('sell_to_grid2_start', 18), 1,
+            help="Start of cycle-2 discharge (evening peak, after midday charging)", disabled=not time_windows['sell_to_grid2_enabled']
+        )
+        time_windows['sell_to_grid2_end'] = st.slider(
+            "Sell to grid End 2nd (hour)", 0, 23, DEFAULT_TIME_WINDOWS.get('sell_to_grid2_end', 21), 1,
+            help="End of cycle-2 discharge (evening peak)", disabled=not time_windows['sell_to_grid2_enabled']
+        )
+
     with st.sidebar.expander("⚡ Grid Charging", expanded=False):
         time_windows['grid_charging_enabled'] = st.toggle("Activate Grid Charging", value=DEFAULT_TIME_WINDOWS.get('grid_charging_enabled', True))
         time_windows['grid_charging_start'] = st.slider(
@@ -189,7 +203,21 @@ def main():
             "Grid Charge End (hour)", 0, 23, DEFAULT_TIME_WINDOWS.get('grid_charging_end', 5), 1,
             help="End of night charging from grid", disabled=not time_windows['grid_charging_enabled']
         )
-    
+        st.markdown("---")
+        time_windows['grid_charging2_enabled'] = st.toggle(
+            "➕ 2nd Charging Window (2 cycles/day)",
+            value=DEFAULT_TIME_WINDOWS.get('grid_charging2_enabled', True),
+            help="Second grid charging window so the battery charges twice per day"
+        )
+        time_windows['grid_charging2_start'] = st.slider(
+            "Grid Charge Start 2nd (hour)", 0, 23, DEFAULT_TIME_WINDOWS.get('grid_charging2_start', 13), 1,
+            help="Start of midday charging from grid (2nd cycle)", disabled=not time_windows['grid_charging2_enabled']
+        )
+        time_windows['grid_charging2_end'] = st.slider(
+            "Grid Charge End 2nd (hour)", 0, 23, DEFAULT_TIME_WINDOWS.get('grid_charging2_end', 16), 1,
+            help="End of midday charging from grid (2nd cycle)", disabled=not time_windows['grid_charging2_enabled']
+        )
+
     with st.sidebar.expander("🔋 Supply to Electrolyser", expanded=False):
         time_windows['electrolyser_enabled'] = st.toggle("Activate Supply to Electrolyser", value=DEFAULT_TIME_WINDOWS.get('electrolyser_enabled', True))
         time_windows['electrolyser_start'] = st.slider(

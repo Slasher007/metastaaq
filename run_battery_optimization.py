@@ -70,22 +70,33 @@ Examples:
     parser.add_argument('--battery-dod', type=float, default=0.90,
                        help='Maximum depth of discharge')
     
-    # Time windows
-    parser.add_argument('--pv-start', type=int, default=10,
+    # Time windows (defaults follow DEFAULT_TIME_WINDOWS: dual daily cycle,
+    # cycle 1 = night charge -> morning sell, cycle 2 = midday charge -> evening sell)
+    parser.add_argument('--pv-start', type=int, default=DEFAULT_TIME_WINDOWS['pv_charge_start'],
                        help='PV charging window start (hour, 0-23)')
-    parser.add_argument('--pv-end', type=int, default=16,
+    parser.add_argument('--pv-end', type=int, default=DEFAULT_TIME_WINDOWS['pv_charge_end'],
                        help='PV charging window end (hour, 0-23)')
-    parser.add_argument('--arbitrage-start', type=int, default=16,
-                       help='Arbitrage discharge window start (hour, 0-23)')
-    parser.add_argument('--arbitrage-end', type=int, default=23,
-                       help='Arbitrage discharge window end (hour, 0-23)')
-    parser.add_argument('--night-start', type=int, default=23,
-                       help='Night charging window start (hour, 0-23)')
-    parser.add_argument('--night-end', type=int, default=5,
-                       help='Night charging window end (hour, 0-23)')
-    parser.add_argument('--ely-start', type=int, default=5,
+    parser.add_argument('--arbitrage-start', type=int, default=DEFAULT_TIME_WINDOWS['sell_to_grid_start'],
+                       help='Cycle-1 discharge window start (hour, 0-23)')
+    parser.add_argument('--arbitrage-end', type=int, default=DEFAULT_TIME_WINDOWS['sell_to_grid_end'],
+                       help='Cycle-1 discharge window end (hour, 0-23)')
+    parser.add_argument('--night-start', type=int, default=DEFAULT_TIME_WINDOWS['grid_charging_start'],
+                       help='Cycle-1 grid charging window start (hour, 0-23)')
+    parser.add_argument('--night-end', type=int, default=DEFAULT_TIME_WINDOWS['grid_charging_end'],
+                       help='Cycle-1 grid charging window end (hour, 0-23)')
+    parser.add_argument('--arbitrage2-start', type=int, default=DEFAULT_TIME_WINDOWS['sell_to_grid2_start'],
+                       help='Cycle-2 discharge window start (hour, 0-23)')
+    parser.add_argument('--arbitrage2-end', type=int, default=DEFAULT_TIME_WINDOWS['sell_to_grid2_end'],
+                       help='Cycle-2 discharge window end (hour, 0-23)')
+    parser.add_argument('--charge2-start', type=int, default=DEFAULT_TIME_WINDOWS['grid_charging2_start'],
+                       help='Cycle-2 grid charging window start (hour, 0-23)')
+    parser.add_argument('--charge2-end', type=int, default=DEFAULT_TIME_WINDOWS['grid_charging2_end'],
+                       help='Cycle-2 grid charging window end (hour, 0-23)')
+    parser.add_argument('--single-cycle', action='store_true',
+                       help='Disable the 2nd daily cycle (default: 2 cycles/day)')
+    parser.add_argument('--ely-start', type=int, default=DEFAULT_TIME_WINDOWS['electrolyser_start'],
                        help='Electrolyser window start (hour, 0-23)')
-    parser.add_argument('--ely-end', type=int, default=10,
+    parser.add_argument('--ely-end', type=int, default=DEFAULT_TIME_WINDOWS['electrolyser_end'],
                        help='Electrolyser window end (hour, 0-23)')
     
     # Electrolyser parameters
@@ -136,16 +147,24 @@ Examples:
     battery_params['eta_discharge'] = np.sqrt(args.battery_efficiency)
     battery_params['DoD_max'] = args.battery_dod
     
-    time_windows = {
+    time_windows = DEFAULT_TIME_WINDOWS.copy()
+    time_windows.update({
         'pv_charge_start': args.pv_start,
         'pv_charge_end': args.pv_end,
         'sell_to_grid_start': args.arbitrage_start,
         'sell_to_grid_end': args.arbitrage_end,
         'grid_charging_start': args.night_start,
         'grid_charging_end': args.night_end,
+        'sell_to_grid2_start': args.arbitrage2_start,
+        'sell_to_grid2_end': args.arbitrage2_end,
+        'grid_charging2_start': args.charge2_start,
+        'grid_charging2_end': args.charge2_end,
         'electrolyser_start': args.ely_start,
         'electrolyser_end': args.ely_end,
-    }
+    })
+    if args.single_cycle:
+        time_windows['sell_to_grid2_enabled'] = False
+        time_windows['grid_charging2_enabled'] = False
     
     electrolyser_params = DEFAULT_ELECTROLYSER_PARAMS.copy()
     electrolyser_params['P_ely'] = args.ely_power
@@ -173,7 +192,11 @@ Examples:
     print(f"\nOperational Time Windows:")
     print(f"  PV Charging: {time_windows['pv_charge_start']:02d}:00 - {time_windows['pv_charge_end']:02d}:00")
     print(f"  Sell to Grid: {time_windows['sell_to_grid_start']:02d}:00 - {time_windows['sell_to_grid_end']:02d}:00")
+    if time_windows.get('sell_to_grid2_enabled', False):
+        print(f"  Sell to Grid (2nd cycle): {time_windows['sell_to_grid2_start']:02d}:00 - {time_windows['sell_to_grid2_end']:02d}:00")
     print(f"  Grid Charging: {time_windows['grid_charging_start']:02d}:00 - {time_windows['grid_charging_end']:02d}:00")
+    if time_windows.get('grid_charging2_enabled', False):
+        print(f"  Grid Charging (2nd cycle): {time_windows['grid_charging2_start']:02d}:00 - {time_windows['grid_charging2_end']:02d}:00")
     print(f"  Electrolyser: {time_windows['electrolyser_start']:02d}:00 - {time_windows['electrolyser_end']:02d}:00")
     
     # Prepare PV profile

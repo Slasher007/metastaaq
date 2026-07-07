@@ -15,30 +15,28 @@ DEFAULT_TIME_WINDOWS = {
     "pv_charge_start": 12,  # 12:00 - Start PV charging
     "pv_charge_end": 17,    # 17:00 - End PV charging
     
-    # 2. Evening arbitrage discharge window
-    "sell_to_grid_enabled": True,
-    "sell_to_grid_start": 18,  # 18:00 - Start selling to grid
-    "sell_to_grid_end": 21,    # 21:00 - End selling to grid (4 hours: 18, 19, 20, 21)
-    
-    # 3. Spot charging window (grid charging at spot prices)
+    # 2. Cycle 1 — charge then discharge (charge must complete before discharge)
+    #    Night charge (02:00-05:00) -> morning peak discharge (07:00-10:00)
     "grid_charging_enabled": True,
-    "grid_charging_start": 2,  # 02:00 - Start spot grid charging
-    "grid_charging_end": 5,    # 05:00 - End spot grid charging (4 hours: 2, 3, 4, 5)
-    
+    "grid_charging_start": 2,  # 02:00 - Start cycle-1 grid charging (night)
+    "grid_charging_end": 5,    # 05:00 - End cycle-1 grid charging (4 hours: 2, 3, 4, 5)
+    "sell_to_grid_enabled": True,
+    "sell_to_grid_start": 7,   # 07:00 - Start cycle-1 discharge (morning peak)
+    "sell_to_grid_end": 10,    # 10:00 - End cycle-1 discharge (4 hours: 7, 8, 9, 10)
+
+    # 3. Cycle 2 — charge then discharge, after cycle 1 completes
+    #    Midday charge (13:00-16:00) -> evening peak discharge (18:00-21:00)
+    "grid_charging2_enabled": True,
+    "grid_charging2_start": 13, # 13:00 - Start cycle-2 grid charging (midday solar dip)
+    "grid_charging2_end": 16,   # 16:00 - End cycle-2 grid charging
+    "sell_to_grid2_enabled": True,
+    "sell_to_grid2_start": 18,  # 18:00 - Start cycle-2 discharge (evening peak)
+    "sell_to_grid2_end": 21,    # 21:00 - End cycle-2 discharge
+
     # 4. Morning electrolyser supply window
     "electrolyser_enabled": False,
     "electrolyser_start": 6,   # 06:00 - Start electrolyser operation
     "electrolyser_end": 11,    # 11:00 - End electrolyser operation
-
-    # 5. Optional second daily cycle — lets the battery charge and discharge
-    #    twice per day (e.g. night charge -> morning peak sell, then
-    #    midday charge -> evening peak sell)
-    "sell_to_grid2_enabled": False,
-    "sell_to_grid2_start": 7,   # 07:00 - Start 2nd sell window (morning peak)
-    "sell_to_grid2_end": 10,    # 10:00 - End 2nd sell window
-    "grid_charging2_enabled": False,
-    "grid_charging2_start": 13, # 13:00 - Start 2nd charge window (midday solar dip)
-    "grid_charging2_end": 16,   # 16:00 - End 2nd charge window
 }
 
 # Electrolyser Parameters for Battery Supply
@@ -83,7 +81,7 @@ DEFAULT_FINANCIAL_PARAMS = {
     "opex_percent_capex": 0.00,   # Set to 0% since electricity OPEX is handled in grid cost
     "discount_rate": 0.08,        # 8% (r)
     "project_lifetime_years": 20, # 20 years (n)
-    "cycles_per_year": 365,       # 1 cycle per day
+    "cycles_per_year": 730,       # 2 cycles per day (dual daily charge/discharge)
 }
 
 # Penalty Parameters
@@ -106,10 +104,14 @@ BATTERY_PARAM_RANGES = {
 TIME_WINDOW_RANGES = {
     "pv_charge_start": {"min": 8, "max": 12, "step": 1, "unit": "hour"},
     "pv_charge_end": {"min": 14, "max": 18, "step": 1, "unit": "hour"},
-    "sell_to_grid_start": {"min": 15, "max": 18, "step": 1, "unit": "hour"},
-    "sell_to_grid_end": {"min": 22, "max": 24, "step": 1, "unit": "hour"},
-    "grid_charging_start": {"min": 22, "max": 24, "step": 1, "unit": "hour"},
-    "grid_charging_end": {"min": 4, "max": 7, "step": 1, "unit": "hour"},
+    "sell_to_grid_start": {"min": 6, "max": 9, "step": 1, "unit": "hour"},
+    "sell_to_grid_end": {"min": 9, "max": 12, "step": 1, "unit": "hour"},
+    "grid_charging_start": {"min": 0, "max": 4, "step": 1, "unit": "hour"},
+    "grid_charging_end": {"min": 3, "max": 6, "step": 1, "unit": "hour"},
+    "sell_to_grid2_start": {"min": 17, "max": 19, "step": 1, "unit": "hour"},
+    "sell_to_grid2_end": {"min": 20, "max": 23, "step": 1, "unit": "hour"},
+    "grid_charging2_start": {"min": 12, "max": 14, "step": 1, "unit": "hour"},
+    "grid_charging2_end": {"min": 15, "max": 17, "step": 1, "unit": "hour"},
     "electrolyser_start": {"min": 4, "max": 8, "step": 1, "unit": "hour"},
     "electrolyser_end": {"min": 9, "max": 12, "step": 1, "unit": "hour"},
 }
@@ -141,8 +143,59 @@ def validate_time_windows(time_windows):
     # Electrolyser should end when PV charging starts (or before)
     if tw["electrolyser_end"] > tw["pv_charge_start"]:
         return False, "Electrolyser should end before or when PV charging starts"
-    
+
+    # Cycle sequencing: within each cycle, charging must complete before
+    # discharging starts (charge -> discharge), and cycle 1 must finish
+    # before cycle 2 begins.
+    # Note: grid_charging_end handles midnight wrap (e.g. 23-04) since only
+    # the end hour matters for "charge done before discharge starts".
+    if tw.get("grid_charging_enabled", False) and tw.get("sell_to_grid_enabled", False):
+        if tw["grid_charging_end"] >= tw["sell_to_grid_start"]:
+            return False, "Cycle 1: grid charging must end before sell-to-grid discharge starts"
+    if tw.get("grid_charging2_enabled", False) and tw.get("sell_to_grid2_enabled", False):
+        if tw["grid_charging2_end"] >= tw["sell_to_grid2_start"]:
+            return False, "Cycle 2: 2nd grid charging must end before 2nd sell-to-grid discharge starts"
+    if tw.get("sell_to_grid_enabled", False) and tw.get("grid_charging2_enabled", False):
+        if tw["sell_to_grid_end"] >= tw["grid_charging2_start"]:
+            return False, "Cycle 1 discharge must end before cycle 2 charging starts"
+
     return True, "Valid"
+
+
+def find_window_overlaps(time_windows):
+    """
+    Find hours claimed by more than one ENABLED time window.
+    Overlapping hours are resolved by the optimizer's fixed priority
+    (Electrolyser > PV > Sell to Grid > Sell to Grid 2nd > Grid Charging
+    > Grid Charging 2nd), so overlaps are warnings, not errors.
+
+    Returns:
+        list of human-readable overlap descriptions (empty if none)
+    """
+    window_defs = [
+        ("PV Charging", "pv_charge_enabled", "pv_charge_start", "pv_charge_end"),
+        ("Sell to Grid", "sell_to_grid_enabled", "sell_to_grid_start", "sell_to_grid_end"),
+        ("Sell to Grid (2nd)", "sell_to_grid2_enabled", "sell_to_grid2_start", "sell_to_grid2_end"),
+        ("Grid Charging", "grid_charging_enabled", "grid_charging_start", "grid_charging_end"),
+        ("Grid Charging (2nd)", "grid_charging2_enabled", "grid_charging2_start", "grid_charging2_end"),
+        ("Supply to Electrolyser", "electrolyser_enabled", "electrolyser_start", "electrolyser_end"),
+    ]
+
+    active = []
+    for name, en_key, s_key, e_key in window_defs:
+        if time_windows.get(en_key, False) and s_key in time_windows and e_key in time_windows:
+            hours = {h for h in range(24)
+                     if is_hour_in_window(h, time_windows[s_key], time_windows[e_key])}
+            active.append((name, hours))
+
+    overlaps = []
+    for i in range(len(active)):
+        for j in range(i + 1, len(active)):
+            shared = sorted(active[i][1] & active[j][1])
+            if shared:
+                hours_str = ", ".join(f"{h:02d}h" for h in shared)
+                overlaps.append(f"**{active[i][0]}** and **{active[j][0]}** overlap at {hours_str}")
+    return overlaps
 
 
 def get_window_duration(start_hour, end_hour):

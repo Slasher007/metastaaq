@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from battery_config import (
     DEFAULT_BATTERY_PARAMS, DEFAULT_TIME_WINDOWS, DEFAULT_ELECTROLYSER_PARAMS,
     DEFAULT_FINANCIAL_PARAMS, DEFAULT_PV_SYSTEM_ENABLED,
-    validate_time_windows, calculate_bess_lcos
+    find_window_overlaps, calculate_bess_lcos
 )
 
 from battery_optimizer import BatteryOptimizer, generate_typical_pv_profile, load_pv_profile
@@ -266,10 +266,6 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
 
     # Configuration section - make it hideable with expander - MOVED BEFORE CHART
     with st.expander("⚙️ Battery Configuration & Operational Time Windows", expanded=False):
-        # Helper to reset optimization state
-        def reset_optimization():
-            st.session_state.battery_optimization_run = False
-
         # Configuration in columns
         col1, col2 = st.columns([1, 2])
         
@@ -380,7 +376,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             cycles_per_year = st.number_input(
                 "Expected Cycles per Year",
                 min_value=50, max_value=730, value=int(DEFAULT_FINANCIAL_PARAMS['cycles_per_year']), step=1,
-                help="Assumed number of full discharge cycles per year for baseline LCOS (365 = 1 cycle/day, 730 = 2 cycles/day)",
+                help="Assumed cycles/year for the baseline LCOS metric shown here (365 = 1 cycle/day, 730 = 2 cycles/day). The cash-flow charts use the cycle count from the actual simulation.",
                 key='bat_cycles_per_year',
                 on_change=reset_optimization
             )
@@ -934,11 +930,14 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
         electrolyser_params = DEFAULT_ELECTROLYSER_PARAMS.copy()
         electrolyser_params['P_ely'] = electrolyser_power
         
-        # Validate time windows
-        is_valid, validation_msg = validate_time_windows(time_windows)
-        if not is_valid:
-            st.error(f"⚠️ Time window configuration issue: {validation_msg}")
-            st.stop()
+        # Warn about overlapping windows (resolved by optimizer priority, not fatal)
+        window_overlaps = find_window_overlaps(time_windows)
+        if window_overlaps:
+            st.warning(
+                "⚠️ **Overlapping time windows** — each hour is assigned to a single window "
+                "by priority (Electrolyser > PV > Sell to Grid > Grid Charging):\n\n"
+                + "\n".join(f"- {o}" for o in window_overlaps)
+            )
         
         with st.spinner("Running battery optimization..."):
             # Use existing columns from CSV data
@@ -1258,50 +1257,53 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             
             # Prepare hourly data
             df_hourly_cost = df_results.copy()
-            
-            # Calculate costs based on window type
-            df_hourly_cost['grid_charge_cost'] = df_hourly_cost.apply(
-                lambda x: x['battery_charge_mw'] * x['spot_price_eur_mwh'] if x['window_type'] == 'grid_charging' else 0, axis=1
+
+            # Grid charging cost: reuse the optimizer's cost_charging, which
+            # already honours the selected price source (spot vs PPA)
+            df_hourly_cost['grid_charge_cost'] = df_hourly_cost['cost_charging']
+
+            # Revenue from selling battery energy to the grid at spot price
+            df_hourly_cost['revenue_sell_to_grid'] = np.where(
+                df_hourly_cost['window_type'] == 'sell_to_grid',
+                df_hourly_cost['battery_discharge_mw'] * df_hourly_cost['spot_price_eur_mwh'], 0.0
             )
-            
-            # Split arbitrage revenue by operation window
-            # We only expect revenue in the arbitrage discharge window, but let's be generic
-            # We want to see the revenue/cost impact of "Selling to Grid" specifically
-            # Since 'battery_discharge_mw' generates revenue in arbitrage window
-            df_hourly_cost['revenue_sell_to_grid'] = df_hourly_cost.apply(
-                lambda x: x['battery_discharge_mw'] * x['spot_price_eur_mwh'] if x['window_type'] == 'sell_to_grid' else 0, axis=1
+
+            # Supply to Electrolyser: avoided spot purchase (savings)
+            df_hourly_cost['ely_supply_savings'] = np.where(
+                df_hourly_cost['window_type'] == 'electrolyser',
+                df_hourly_cost['battery_discharge_mw'] * df_hourly_cost['spot_price_eur_mwh'], 0.0
             )
-            
-            # Supply to Electrolyser: This represents a cost savings compared to PPA
-            # When battery supplies electrolyser, we avoid buying at spot price
-            # The "cost impact" is: Energy supplied * (Spot Price - 0) = negative cost (savings)
-            df_hourly_cost['ely_supply_savings'] = df_hourly_cost.apply(
-                lambda x: x['battery_discharge_mw'] * x['spot_price_eur_mwh'] if x['window_type'] == 'electrolyser' else 0, axis=1
+
+            # PPA Baseline: cost if the electrolyser input energy were bought at PPA price
+            # (counted in hours where spot exceeds the PPA price)
+            df_hourly_cost['ppa_baseline_cost'] = np.where(
+                (ppa_price > 0) & (df_hourly_cost['spot_price_eur_mwh'] > ppa_price),
+                electrolyser_power * ppa_price, 0.0
             )
-            
-            # PPA Baseline: Cost if we bought the electrolyser input energy at PPA price
-            # The baseline assumes constant electrolyser operation powered by PPA
-            # So we use the full electrolyser power capacity for PPA baseline calculation
-            df_hourly_cost['ppa_baseline_cost'] = df_hourly_cost.apply(
-                lambda x: electrolyser_power * ppa_price if ppa_price > 0 and x['spot_price_eur_mwh'] > ppa_price else 0,
-                axis=1
+            df_hourly_cost['pv_baseline_cost'] = np.where(
+                df_hourly_cost['window_type'] == 'pv_charge',
+                df_hourly_cost['battery_charge_mw'] * pv_price, 0.0
             )
-            df_hourly_cost['pv_baseline_cost'] = df_hourly_cost.apply(
-                lambda x: x['battery_charge_mw'] * pv_price if x['window_type'] == 'pv_charge' else 0,
-                axis=1
+
+            # Battery LCOS consistent with the SIMULATED cycling (annualized),
+            # rather than the fixed "Expected Cycles per Year" input
+            sim_hours = max(len(df_results), 1)
+            sim_cycles_per_year = summary.get('equivalent_cycles', 0.0) * (8760.0 / sim_hours)
+            lcos_sim = calculate_bess_lcos(
+                battery_params, fin_params=dict(fin_params, cycles_per_year=sim_cycles_per_year)
             )
-            # Use the live rigorously evaluated LCOS value immediately
-            battery_cost_per_mwh = lcos_live.get('lcos_per_mwh', 0.0) if st.session_state.get('bat_lcos_enabled', True) else 0.0
-            discharge_windows = {'sell_to_grid', 'electrolyser'}
-            df_hourly_cost['battery_lcos_cost'] = df_hourly_cost.apply(
-                lambda x: x['battery_discharge_mw'] * battery_cost_per_mwh if x['window_type'] in discharge_windows else 0,
-                axis=1
+            battery_cost_per_mwh = lcos_sim['lcos_per_mwh'] if st.session_state.get('bat_lcos_enabled', True) else 0.0
+            if battery_cost_per_mwh > 0:
+                st.caption(
+                    f"🔋 Battery LCOS applied below: **{battery_cost_per_mwh:,.1f} €/MWh**, based on the "
+                    f"simulated **{sim_cycles_per_year:,.0f} cycles/year** "
+                    f"(configured baseline: {fin_params['cycles_per_year']} cycles/year → {lcos_live['lcos_per_mwh']:,.1f} €/MWh)."
+                )
+            df_hourly_cost['battery_lcos_cost'] = np.where(
+                df_hourly_cost['window_type'].isin(['sell_to_grid', 'electrolyser']),
+                df_hourly_cost['battery_discharge_mw'] * battery_cost_per_mwh, 0.0
             )
-            scaling_factor = electrolyser_power
-            for col in ['grid_charge_cost', 'revenue_sell_to_grid', 'ely_supply_savings',
-                        'ppa_baseline_cost', 'pv_baseline_cost', 'battery_lcos_cost']:
-                df_hourly_cost[col] = df_hourly_cost[col] * scaling_factor
-            
+
             df_hourly_cost['net_cashflow'] = (
                 df_hourly_cost['grid_charge_cost']
                 + df_hourly_cost['pv_baseline_cost']
@@ -1320,13 +1322,6 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 'net_cashflow': float(df_hourly_cost['net_cashflow'].sum())
             }
             
-            #print(df_hourly_cost.columns)
-            subset_columns = ['window_type',
-                                'spot_price_eur_mwh',
-                                'grid_charge_cost', 'revenue_sell_to_grid',
-                                'ely_supply_savings', 'ppa_baseline_cost', 'pv_baseline_cost',
-                                'battery_lcos_cost', 'net_cashflow']
-            print(df_hourly_cost[subset_columns])
             # Group by hour of day
             hourly_profile = df_hourly_cost.groupby('hour_of_day').agg({
                 'grid_charge_cost': 'sum',
@@ -1374,6 +1369,10 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             _ely_s   = st.session_state.get('ely_start',   DEFAULT_TIME_WINDOWS['electrolyser_start'])
             _ely_e   = st.session_state.get('ely_end',     DEFAULT_TIME_WINDOWS['electrolyser_end'])
 
+            # Combined flags: a stream is active if either its 1st or 2nd window is on
+            _arb_any  = _arb_on or _arb2_on
+            _grid_any = _grid_on or _grid2_on
+
             def _shade_cost_window(start, end, color):
                 """Shade an inclusive hour window on the cost chart; handles midnight wrap."""
                 if start > end:
@@ -1397,7 +1396,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                 _shade_cost_window(_ely_s, _ely_e, 'purple')
 
             # --- Bars: costs DOWN (negative), revenue UP (positive) ---
-            if _grid_on:
+            if _grid_any:
                 ax.bar(hourly_profile.index, -hourly_profile['grid_charge_cost'],
                        label='Grid to Battery (cost ↓)', color='red', alpha=0.7)
                 for hour in hourly_profile.index:
@@ -1407,7 +1406,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                                 f"-{v:.1f} k€",
                                 ha='center', va='center', fontsize=8, color='black', fontweight='bold')
 
-            if _arb_on:
+            if _arb_any:
                 ax.bar(hourly_profile.index, hourly_profile['revenue_sell_to_grid'],
                        label='Battery to Grid (revenue ↑)', color='green', alpha=0.7)
                 for hour in hourly_profile.index:
@@ -1438,7 +1437,7 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
                         label=f'PV LCOE cost ({pv_price} €/MWh)', color='gold',
                         linewidth=1.5, alpha=0.7, linestyle='--', marker='s')
 
-            if _arb_on or _ely_on:
+            if _arb_any or _ely_on:
                 ax.bar(hourly_profile.index, -hourly_profile['battery_lcos_cost'],
                        label=f'Battery LCOS cost ({battery_cost_per_mwh:.0f} €/MWh)', color='gray', alpha=0.7, bottom=-hourly_profile['grid_charge_cost'] - hourly_profile['pv_baseline_cost'])
                 for hour in hourly_profile.index:
@@ -1481,8 +1480,8 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             n_data_points = len(df_results)
             service_ratio_pct = avg_service_ratio * 100
             active_windows = ', '.join([
-                w for w, on in [('PV', _pv_on), ('Sell→Grid', _arb_on),
-                                ('Grid→Bat', _grid_on), ('Bat→Ely', _ely_on)] if on
+                w for w, on in [('PV', _pv_on), ('Sell→Grid', _arb_any),
+                                ('Grid→Bat', _grid_any), ('Bat→Ely', _ely_on)] if on
             ]) or 'None'
             title = (f'Hourly Cash Flows ({year_str})  [Active windows: {active_windows}]\n'
                      f'Electrolyser Power: {electrolyser_power:.1f} MW | '
@@ -1514,19 +1513,19 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             cost_bottom = np.zeros(len(x_months))
             revenue_bottom = np.zeros(len(x_months))
             
-            if _grid_on:
+            if _grid_any:
                 ax.bar(x_months, -monthly_profile['grid_charge_cost'], label='Grid to Battery (cost)', color='red', alpha=0.7, bottom=-cost_bottom)
                 cost_bottom += monthly_profile['grid_charge_cost']
-            
+
             if _pv_on:
                 ax.bar(x_months, -monthly_profile['pv_baseline_cost'], label='PV LCOE cost', color='gold', alpha=0.7, bottom=-cost_bottom)
                 cost_bottom += monthly_profile['pv_baseline_cost']
 
-            if _arb_on or _ely_on:
+            if _arb_any or _ely_on:
                 ax.bar(x_months, -monthly_profile['battery_lcos_cost'], label='Battery LCOS cost', color='gray', alpha=0.7, bottom=-cost_bottom)
                 cost_bottom += monthly_profile['battery_lcos_cost']
-                
-            if _arb_on:
+
+            if _arb_any:
                 ax.bar(x_months, monthly_profile['revenue_sell_to_grid'], label='Battery to Grid (revenue)', color='green', alpha=0.7, bottom=revenue_bottom)
                 revenue_bottom += monthly_profile['revenue_sell_to_grid']
                 
@@ -1580,19 +1579,19 @@ def render_battery_arbitrage_tab(data_content, electrolyser_power, pv_energy_dat
             cost_acc = 0
             rev_acc = 0
             
-            if _grid_on:
+            if _grid_any:
                 ax.bar(x_pos, -yearly_profile['grid_charge_cost'], width=0.5, label='Grid to Battery (cost)', color='red', alpha=0.7, bottom=-cost_acc)
                 cost_acc += yearly_profile['grid_charge_cost']
-            
+
             if _pv_on:
                 ax.bar(x_pos, -yearly_profile['pv_baseline_cost'], width=0.5, label='PV LCOE cost', color='gold', alpha=0.7, bottom=-cost_acc)
                 cost_acc += yearly_profile['pv_baseline_cost']
 
-            if _arb_on or _ely_on:
+            if _arb_any or _ely_on:
                 ax.bar(x_pos, -yearly_profile['battery_lcos_cost'], width=0.5, label='Battery LCOS cost', color='gray', alpha=0.7, bottom=-cost_acc)
                 cost_acc += yearly_profile['battery_lcos_cost']
-                
-            if _arb_on:
+
+            if _arb_any:
                 ax.bar(x_pos, yearly_profile['revenue_sell_to_grid'], width=0.5, label='Battery to Grid (revenue)', color='green', alpha=0.7, bottom=rev_acc)
                 rev_acc += yearly_profile['revenue_sell_to_grid']
                 

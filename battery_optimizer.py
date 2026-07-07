@@ -51,8 +51,11 @@ class BatteryOptimizer:
         self.ppa_price = ppa_price
         self.grid_charge_use_ppa = grid_charge_use_ppa
         
-        # Calculate effective energy limits based on DoD
-        self.E_min = self.battery_params["E_bat_max"] * self.battery_params["SoC_min"]
+        # Calculate effective energy limits based on SoC bounds and DoD:
+        # a DoD_max of 0.9 means the battery may never drain below 10% SoC
+        soc_floor = max(self.battery_params["SoC_min"],
+                        1.0 - self.battery_params.get("DoD_max", 1.0))
+        self.E_min = self.battery_params["E_bat_max"] * soc_floor
         self.E_max = self.battery_params["E_bat_max"] * self.battery_params["SoC_max"]
         
     def simulate_year(self, pv_profile_mw, spot_prices_eur_mwh, hours_of_day):
@@ -210,33 +213,28 @@ class BatteryOptimizer:
     def _pv_charge_window(self, E_bat, pv_available, spot_price, is_last_hour=False):
         """
         PV-priority charging window (default 10:00-16:00)
-        - Simplified: Charge at constant power (P_charge_max) each hour
-        - PV charge = charge power (constant charging)
-        - No curtailment calculation (simplified)
+        - Charge from PV production, limited by actual PV output, the
+          charge power rating, and the battery's remaining headroom
+        - Excess PV is curtailed
         """
         flows = self._init_flows()
-        
+
         # Calculate how much battery can accept
         E_available = self.E_max - E_bat
         P_charge_limit = self.battery_params["P_charge_max"]
         eta_charge = self.battery_params["eta_charge"]
 
-        # Simplified: Constant charge power each hour (not dependent on actual PV or remaining capacity)
-        # Always charge at P_charge_max unless battery is already full
         if E_available > 0:
-            P_charge = P_charge_limit  # Constant power
-            E_charge = P_charge * 1.0  # Energy over 1 hour
-            
-            # Apply charging efficiency and cap at max capacity
-            E_bat_new = min(E_bat + E_charge * eta_charge, self.E_max)
-            
+            # Limited by PV production, power rating, and remaining headroom
+            # (headroom is measured after charging losses: 1 MWh drawn stores eta_charge MWh)
+            P_charge = min(P_charge_limit, pv_available, E_available / eta_charge)
+            E_bat_new = min(E_bat + P_charge * eta_charge, self.E_max)
             flows['battery_charge'] = P_charge
         else:
             # Battery already full
-            P_charge = 0.0
             E_bat_new = E_bat
             flows['battery_charge'] = 0.0
-        
+
         return E_bat_new, flows
     
     def _sell_to_grid_window(self, E_bat, pv_available, spot_price):
@@ -252,21 +250,18 @@ class BatteryOptimizer:
         E_available = E_bat - self.E_min
         P_discharge_limit = self.battery_params["P_discharge_max"]
         eta_discharge = self.battery_params["eta_discharge"]
-        
-        # Constant discharge at maximum rate (unless battery is empty)
+
         if E_available > 0:
-            P_discharge = P_discharge_limit  # Constant power
-            E_discharge = P_discharge * 1.0
-            
-            # Apply discharge efficiency and ensure we don't go below minimum
-            E_bat_new = max(E_bat - E_discharge / eta_discharge, self.E_min)
-            
+            # Limited by power rating and remaining stored energy
+            # (delivering P for 1h drains P / eta_discharge from the battery)
+            P_discharge = min(P_discharge_limit, E_available * eta_discharge)
+            E_bat_new = max(E_bat - P_discharge / eta_discharge, self.E_min)
             flows['battery_discharge'] = P_discharge
         else:
             # Battery already at minimum
             E_bat_new = E_bat
             flows['battery_discharge'] = 0.0
-        
+
         return E_bat_new, flows
     
     def _grid_charging_window(self, E_bat, pv_available, spot_price):
@@ -281,21 +276,18 @@ class BatteryOptimizer:
         E_available = self.E_max - E_bat
         P_charge_limit = self.battery_params["P_charge_max"]
         eta_charge = self.battery_params["eta_charge"]
-        
-        # Constant charge at maximum rate (unless battery is full)
+
         if E_available > 0:
-            P_charge = P_charge_limit  # Constant power
-            E_charge = P_charge * 1.0 * eta_charge
-            
-            # Cap at maximum capacity
-            E_bat_new = min(E_bat + E_charge, self.E_max)
-            
+            # Limited by power rating and remaining headroom, so we only
+            # pay for energy the battery actually absorbs
+            P_charge = min(P_charge_limit, E_available / eta_charge)
+            E_bat_new = min(E_bat + P_charge * eta_charge, self.E_max)
             flows['battery_charge'] = P_charge
         else:
             # Battery already full
             E_bat_new = E_bat
             flows['battery_charge'] = 0.0
-        
+
         return E_bat_new, flows
     
     def _electrolyser_window(self, E_bat, pv_available, spot_price):
