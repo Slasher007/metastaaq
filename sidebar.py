@@ -1194,10 +1194,10 @@ def create_battery_parameters(estimated_pv_power_mwp=None):
         
         battery_cost_per_kwh = st.slider(
             "Battery Cost (€/kWh)",
-            min_value=100,
-            max_value=800,
+            min_value=100.0,
+            max_value=800.0,
             value=DEFAULT_PARAMS["battery_cost_per_kwh"],
-            step=10,
+            step=10.0,
             help="Cost per kWh of battery storage capacity"
         )
         
